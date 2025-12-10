@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Download Machine - Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        input[type="text"], 
+        input[type="number"] {
+            width: 100%;
+            max-width: 400px;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            background: #f8f9fa;
+            margin: 0 auto;
+            display: block;
+        }
+
+        input[type="text"]:focus, 
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto 0;
+            display: block;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .download-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .progress-display {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .progress-bar-container {
+            background: #e9ecef;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Ultimate Download Machine</h1>
+        <p class="subtitle">Search and download images powered by Brave Search API</p>
+        
+        <form id="downloadForm">
+            <div class="form-group">
+                <label for="query">Enter Search Query:</label>
+                <input type="text" id="query" name="query" placeholder="e.g., beautiful mountains, cute cats..." required>
+            </div>
+            
+            <div class="form-group">
+                <label for="imageCount">Number of Images (Max: 50):</label>
+                <input type="number" id="imageCount" name="imageCount" min="1" max="50" value="5" required>
+            </div>
+            
+            <button type="submit" class="download-btn">
+                📥 Start Download
+            </button>
+        </form>
+
+        <div id="progressContainer" style="display: none;">
+            <div class="progress-display">
+                <h3>Download Progress</h3>
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div id="progressText">Initializing...</div>
+                <div style="margin-top: 15px;">
+                    <button id="openFolderBtn" class="btn btn-success" style="display: none;" onclick="openFolder()">📁 Open Folder</button>
+                    <button class="btn btn-secondary" onclick="resetForm()">🔄 New Download</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="statusMessage"></div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+        let statusInterval = null;
+
+        document.getElementById('downloadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const query = document.getElementById('query').value.trim();
+            const imageCount = document.getElementById('imageCount').value;
+            
+            if (!query) {
+                showMessage('Please enter a search query!', 'error');
+                return;
+            }
+            
+            if (imageCount < 1 || imageCount > 50) {
+                showMessage('Please enter a number between 1 and 50!', 'error');
+                return;
+            }
+            
+            await startDownload(query, imageCount);
+        });
+
+        async function startDownload(query, count) {
+            const button = document.querySelector('.download-btn');
+            
+            try {
+                // Show loading state
+                button.innerHTML = '⏳ Starting...';
+                button.disabled = true;
+                
+                showMessage(`Starting download of ${count} images for "${query}"...`, 'success');
+                
+                // Send request to backend
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        count: parseInt(count)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentSessionId = result.session_id;
+                    
+                    // Show progress container
+                    document.getElementById('progressContainer').style.display = 'block';
+                    
+                    // Start monitoring progress
+                    startProgressMonitoring();
+                    
+                } else {
+                    throw new Error(result.error || 'Download failed to start');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showMessage(`Error: ${error.message}`, 'error');
+                
+                // Reset button
+                button.innerHTML = '📥 Start Download';
+                button.disabled = false;
+            }
+        }
+
+        function startProgressMonitoring() {
+            if (!currentSessionId) return;
+            
+            statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/status/${currentSessionId}`);
+                    const status = await response.json();
+                    
+                    updateProgress(status);
+                    
+                    if (status.status === 'completed' || status.status === 'failed') {
+                        clearInterval(statusInterval);
+                        
+                        if (status.status === 'completed') {
+                            document.getElementById('openFolderBtn').style.display = 'inline-block';
+                            showMessage('Download completed successfully!', 'success');
+                        } else {
+                            showMessage(`Download failed: ${status.message}`, 'error');
+                        }
+                        
+                        // Reset download button
+                        const button = document.querySelector('.download-btn');
+                        button.innerHTML = '📥 Start Download';
+                        button.disabled = false;
+                    }
+                    
+                } catch (error) {
+                    console.error('Status check error:', error);
+                }
+            }, 1000);
+        }
+
+        function updateProgress(status) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            if (progressBar && progressText) {
+                const percentage = status.total > 0 ? (status.progress / status.total) * 100 : 0;
+                progressBar.style.width = `${percentage}%`;
+                
+                let text = status.message || 'Processing...';
+                if (status.downloaded !== undefined) {
+                    text += ` (${status.downloaded}/${status.total} downloaded`;
+                    if (status.failed > 0) {
+                        text += `, ${status.failed} failed`;
+                    }
+                    text += ')';
+                }
+                
+                progressText.textContent = text;
+            }
+        }
+
+        async function openFolder() {
+            if (!currentSessionId) return;
+            
+            try {
+                const response = await fetch(`/open-folder/${currentSessionId}`);
+                const result = await response.json();
+                
+                if (!result.success) {
+                    showMessage('Could not open folder', 'error');
+                }
+            } catch (error) {
+                showMessage('Error opening folder', 'error');
+            }
+        }
+
+        function resetForm() {
+            // Clear form
+            document.getElementById('query').value = '';
+            document.getElementById('imageCount').value = '5';
+            
+            // Hide progress container
+            document.getElementById('progressContainer').style.display = 'none';
+            
+            // Clear status interval
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
+            
+            // Reset button
+            const button = document.querySelector('.download-btn');
+            button.innerHTML = '📥 Start Download';
+            button.disabled = false;
+            
+            currentSessionId = null;
+            
+            // Clear status message
+            document.getElementById('statusMessage').innerHTML = '';
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('statusMessage');
+            messageDiv.className = `status ${type}`;
+            messageDiv.textContent = message;
+            
+            // Auto-remove success messages after 3 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    if (messageDiv.textContent === message) {
+                        messageDiv.innerHTML = '';
+                    }
+                }, 3000);
+            }
+        }
+
+        // Input validation
+        document.getElementById('imageCount').addEventListener('input', function(e) {
+            const value = parseInt(e.target.value);
+            if (value > 50) {
+                e.target.value = 50;
+            } else if (value < 1) {
+                e.target.value = 1;
+            }
+        });
+    </script>
+</body>
+</html>

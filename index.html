@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Download Machine</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Welcome to the Ultimate Download Machine</h1>
+        <p class="subtitle">Search and download images powered by Brave Search API</p>
+        
+        <form id="downloadForm">
+            <div class="form-group">
+                <label for="query">Enter Search Query:</label>
+                <input type="text" id="query" name="query" placeholder="e.g., beautiful mountains, cute cats, sports cars..." required>
+            </div>
+            
+            <div class="form-group">
+                <label for="imageCount">Number of Images:</label>
+                <div class="number-input-wrapper">
+                    <input type="number" id="imageCount" name="imageCount" min="1" max="50" value="20" required>
+                    <span class="max-label">Max: 50</span>
+                </div>
+            </div>
+            
+            <button type="submit" class="download-btn">
+                <span class="icon">📥</span>Start Download
+            </button>
+        </form>
+
+        <div class="feature-list">
+            <h3>Features:</h3>
+            <ul>
+                <li>High-quality image search</li>
+                <li>Organized folder structure</li>
+                <li>Multiple format support</li>
+                <li>Batch download up to 50 images</li>
+                <li>Auto-saved to Pictures/BraveSearch</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
