@@ -5,6 +5,7 @@ Connects the HTML frontend with the Brave Image Downloader
 
 from flask import Flask, request, jsonify, send_file, Response
 from flask_cors import CORS
+from dotenv import load_dotenv
 import os
 import threading
 import time
@@ -15,11 +16,16 @@ import uuid
 from urllib.parse import urlparse
 from brave_image_downloader import BraveImageDownloader
 
+# Load environment variables from .env file
+load_dotenv()
+
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
 # Initialize the downloader
-API_KEY = "BSAHie1ZI1j77ZpQVuu3DHLsVuDFnt6"
+API_KEY = os.getenv('BRAVE_API_KEY')
+if not API_KEY:
+    raise ValueError("BRAVE_API_KEY not found in environment variables. Please create a .env file with your API key.")
 downloader = BraveImageDownloader(API_KEY)
 
 # Store download status for each session
@@ -301,4 +307,5 @@ if __name__ == '__main__':
     print("📁 Images download directly to user's device as ZIP")
     print("🚀 Ready for web deployment!")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.getenv('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)

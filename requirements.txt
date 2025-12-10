@@ -1,4 +1,4 @@
 flask
 flask-cors
 requests
-zipfile36
+python-dotenv

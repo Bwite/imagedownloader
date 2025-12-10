@@ -16,7 +16,7 @@ class BraveImageDownloader:
             "Accept": "application/json",
             "X-Subscription-Token": api_key
         }
-        self.base_folder = r"C:\Users\Admin\Pictures\BraveSearch"
+        self.base_folder = os.path.join(os.getcwd(), "downloads")
         
     def search_images(self, query, count=50):
         """Search for images using Brave Search API"""
