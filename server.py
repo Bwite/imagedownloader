@@ -34,7 +34,7 @@ def get_file_extension(url, content_type=None):
     path = parsed_url.path
     if path and '.' in path:
         ext = path.split('.')[-1].lower()
-        if ext in ['jpg', 'jpeg', 'png', 'gif']:
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
             return f".{ext}"
     
     # Try to get extension from content type
@@ -45,6 +45,8 @@ def get_file_extension(url, content_type=None):
             return '.png'
         elif 'gif' in content_type:
             return '.gif'
+        elif 'webp' in content_type:
+            return '.webp'
         
     
     # Default to jpg
@@ -88,7 +90,39 @@ def debug_search():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def download_worker(session_id, query, count):
+def parse_min_size(min_size_str):
+    """Parse minimum size string (e.g., '1280x720') into tuple (width, height)"""
+    if not min_size_str or min_size_str == 'any':
+        return None
+    try:
+        width, height = min_size_str.lower().split('x')
+        return (int(width), int(height))
+    except:
+        return None
+
+def meets_size_requirement(img, min_size):
+    """Check if image meets minimum size requirement"""
+    if not min_size:
+        return True
+    
+    min_width, min_height = min_size
+    
+    # Try to get dimensions from properties
+    if 'properties' in img and isinstance(img['properties'], dict):
+        props = img['properties']
+        width = props.get('width')
+        height = props.get('height')
+        
+        if width and height:
+            try:
+                return int(width) >= min_width and int(height) >= min_height
+            except:
+                pass
+    
+    # If no dimensions available, allow it through
+    return True
+
+def download_worker(session_id, query, count, min_size=None):
     """Background worker to download images and create ZIP"""
     try:
         download_status[session_id]['status'] = 'searching'
@@ -116,6 +150,11 @@ def download_worker(session_id, query, count):
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for i, img in enumerate(results, 1):
                 try:
+                    # Check if image meets size requirement
+                    if not meets_size_requirement(img, min_size):
+                        download_status[session_id]['failed'] += 1
+                        continue
+                    
                     # Get image URL from Brave API response
                     img_url = None
 
@@ -174,6 +213,7 @@ def start_download():
         data = request.get_json()
         query = data.get('query', '').strip()
         count = int(data.get('count', 20))
+        min_size_str = data.get('min_size', 'any')
 
         # Validation
         if not query:
@@ -181,6 +221,9 @@ def start_download():
 
         if count < 1 or count > 50:
             return jsonify({'error': 'Count must be between 1 and 50'}), 400
+
+        # Parse minimum size
+        min_size = parse_min_size(min_size_str)
 
         # Create session
         session_id = str(uuid.uuid4())
@@ -196,7 +239,7 @@ def start_download():
         }
 
         # Start background download
-        thread = threading.Thread(target=download_worker, args=(session_id, query, count))
+        thread = threading.Thread(target=download_worker, args=(session_id, query, count, min_size))
         thread.daemon = True
         thread.start()
 

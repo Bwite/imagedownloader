@@ -21,6 +21,7 @@ function handleFormSubmit(e) {
     
     const query = document.getElementById('query').value.trim();
     const imageCount = document.getElementById('imageCount').value;
+    const minSize = document.getElementById('minSize').value;
     
     if (!query) {
         alert('Please enter a search query!');
@@ -32,10 +33,10 @@ function handleFormSubmit(e) {
         return;
     }
     
-    startDownload(query, imageCount);
+    startDownload(query, imageCount, minSize);
 }
 
-async function startDownload(query, count) {
+async function startDownload(query, count, minSize) {
     const button = document.querySelector('.download-btn');
     const originalText = button.innerHTML;
     
@@ -52,7 +53,8 @@ async function startDownload(query, count) {
             },
             body: JSON.stringify({
                 query: query,
-                count: parseInt(count)
+                count: parseInt(count),
+                min_size: minSize
             })
         });
         
