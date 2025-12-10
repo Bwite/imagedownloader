@@ -49,7 +49,7 @@ class BraveImageDownloader:
         path = parsed_url.path
         if path and '.' in path:
             ext = path.split('.')[-1].lower()
-            if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']:
+            if ext in ['jpg', 'jpeg', 'png', 'gif']:
                 return f".{ext}"
         
         # Try to get extension from content type
@@ -60,8 +60,6 @@ class BraveImageDownloader:
                 return '.png'
             elif 'gif' in content_type:
                 return '.gif'
-            elif 'webp' in content_type:
-                return '.webp'
         
         # Default to jpg
         return '.jpg'
