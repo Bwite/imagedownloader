@@ -11,7 +11,7 @@ import time
 # Configuration
 API_KEY = "BSAHie1ZI1j77ZpQVuu3DHLsVuDFnt6"
 QUERY = "curtis 50 cent jackson"  # Change this to your desired search query
-COUNT = 20  # Number of images to download (max 20)
+COUNT = 50  # Number of images to download (max 50)
 BASE_FOLDER = r"C:\Users\Admin\Pictures\BraveSearch"
 
 def search_and_download_images():

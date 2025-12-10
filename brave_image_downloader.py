@@ -18,7 +18,7 @@ class BraveImageDownloader:
         }
         self.base_folder = r"C:\Users\Admin\Pictures\BraveSearch"
         
-    def search_images(self, query, count=20):
+    def search_images(self, query, count=50):
         """Search for images using Brave Search API"""
         params = {
             "q": query,
@@ -66,7 +66,7 @@ class BraveImageDownloader:
         # Default to jpg
         return '.jpg'
     
-    def download_images(self, query, count=20):
+    def download_images(self, query, count=50):
         """Download images for a given query"""
         # Search for images
         results = self.search_images(query, count)
@@ -145,11 +145,11 @@ def main():
             continue
         
         try:
-            count = int(input("Number of images to download (default 20): ") or "20")
+            count = int(input("Number of images to download (default 50): ") or "50")
             if count <= 0:
-                count = 20
+                count = 50
         except ValueError:
-            count = 20
+            count = 50
             
         # Download images
         folder = downloader.download_images(query, count)
