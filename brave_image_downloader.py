@@ -22,7 +22,8 @@ class BraveImageDownloader:
         """Search for images using Brave Search API"""
         params = {
             "q": query,
-            "count": count
+            "count": count,
+            "safesearch": "off"
         }
         
         try:
@@ -52,7 +53,7 @@ class BraveImageDownloader:
             if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
                 return f".{ext}"
         
-        # Try to get extension from content type
+        
         if content_type:
             if 'jpeg' in content_type or 'jpg' in content_type:
                 return '.jpg'
@@ -79,14 +80,14 @@ class BraveImageDownloader:
         os.makedirs(download_folder, exist_ok=True)
         print(f"📁 Created folder: {download_folder}")
         
-        # Download each image
+       
         downloaded = 0
         for i, img in enumerate(results, 1):
             try:
                 # Get image URL from the result
                 img_url = img.get('src')
                 if not img_url:
-                    print(f"⚠️ No image URL found for result {i}")
+                    print(f" No image URL found for result {i}")
                     continue
                 
                 print(f"Downloading image {i}/{len(results)}...")
@@ -116,7 +117,7 @@ class BraveImageDownloader:
                 time.sleep(0.5)
                 
             except Exception as e:
-                print(f"❌ Failed to download image {i}: {e}")
+                print(f" Failed to download image {i}: {e}")
                 continue
         
         print(f"\n🎉 Successfully downloaded {downloaded} out of {len(results)} images to {download_folder}")
