@@ -124,8 +124,13 @@ class BraveImageDownloader:
         return download_folder
 
 def main():
-    # Your API key
-    API_KEY = "BSAHie1ZI1j77ZpQVuu3DHLsVuDFnt6"
+    # Get API key from environment variable
+    API_KEY = os.getenv('BRAVE_API_KEY')
+    
+    if not API_KEY:
+        print("Error: BRAVE_API_KEY not found in environment variables.")
+        print("Please create a .env file with your API key or set the environment variable.")
+        return
     
     # Create downloader instance
     downloader = BraveImageDownloader(API_KEY)
