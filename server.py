@@ -159,7 +159,8 @@ def download_worker(session_id, query, count):
         # Store the ZIP buffer
         zip_buffer.seek(0)
         download_status[session_id]['zip_buffer'] = zip_buffer
-        download_status[session_id]['zip_filename'] = f"{query.replace(' ', '_').replace('/', '_').replace('\\', '_')}_images.zip"
+        safe_query = query.replace(' ', '_').replace('/', '_').replace('\\', '_')
+        download_status[session_id]['zip_filename'] = f"{safe_query}_images.zip"
         download_status[session_id]['status'] = 'completed'
         download_status[session_id]['message'] = f'Successfully downloaded {download_status[session_id]["downloaded"]} images'
 
