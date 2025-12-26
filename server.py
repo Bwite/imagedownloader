@@ -134,8 +134,8 @@ def download_worker(session_id, query, count, min_size=None):
         download_status[session_id]['status'] = 'searching'
         download_status[session_id]['message'] = 'Searching for images...'
 
-        # Search for images
-        results = downloader.search_images(query, count)
+        # Search for images with size filter applied during search
+        results = downloader.search_images(query, count, min_size)
 
         if not results:
             with status_lock:
@@ -156,11 +156,6 @@ def download_worker(session_id, query, count, min_size=None):
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for i, img in enumerate(results, 1):
                 try:
-                    # Check if image meets size requirement
-                    if not meets_size_requirement(img, min_size):
-                        download_status[session_id]['failed'] += 1
-                        continue
-                    
                     # Get image URL from Brave API response
                     img_url = None
 

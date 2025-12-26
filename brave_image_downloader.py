@@ -18,11 +18,15 @@ class BraveImageDownloader:
         }
         self.base_folder = os.path.join(os.getcwd(), "downloads")
         
-    def search_images(self, query, count=50):
-        """Search for images using Brave Search API"""
+    def search_images(self, query, count=50, min_size=None):
+        """Search for images using Brave Search API and filter by minimum size"""
+        # Request more results to account for filtering
+        request_count = count * 3 if min_size else count
+        request_count = min(request_count, 150)  # API limit
+        
         params = {
             "q": query,
-            "count": count,
+            "count": request_count,
             "safesearch": "off"
         }
         
@@ -36,7 +40,42 @@ class BraveImageDownloader:
                 
             data = response.json()
             results = data.get('results', [])
-            print(f"✅ Found {len(results)} images")
+            
+            # Filter by size if minimum size is specified
+            if min_size:
+                min_width, min_height = min_size
+                filtered_results = []
+                
+                for img in results:
+                    if 'properties' in img and isinstance(img['properties'], dict):
+                        props = img['properties']
+                        width = props.get('width')
+                        height = props.get('height')
+                        
+                        if width and height:
+                            try:
+                                if int(width) >= min_width and int(height) >= min_height:
+                                    filtered_results.append(img)
+                                    if len(filtered_results) >= count:
+                                        break
+                            except:
+                                continue
+                        else:
+                            # If no size info, include it
+                            filtered_results.append(img)
+                            if len(filtered_results) >= count:
+                                break
+                    else:
+                        # If no properties, include it
+                        filtered_results.append(img)
+                        if len(filtered_results) >= count:
+                            break
+                
+                results = filtered_results
+                print(f"✅ Found {len(results)} images matching size requirements")
+            else:
+                print(f"✅ Found {len(results)} images")
+            
             return results
             
         except Exception as e:
