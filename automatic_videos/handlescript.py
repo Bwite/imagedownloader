@@ -165,57 +165,58 @@ def group_words_into_sections(words, audio_duration, max_sentences_per_section=3
     return sections
 
 
-def generate_search_queries_with_groq(sections_text, full_transcript):
+def generate_sections_with_groq(segments, full_transcript):
     """
-    Send all sections to Groq in one call and get back a list of
-    descriptive, searchable image queries (one per section), each ending in 'photos'.
-    The full transcript is provided for context.
+    Send the timestamped segments to Groq and let AI decide how to split
+    the video into visual sections. Each person mentioned gets their own
+    image shown, and context (team, era, event) is respected.
+    Returns a list of section dicts with start_time, end_time, search_query.
     """
-    numbered = ""
-    for i, text in enumerate(sections_text, 1):
-        numbered += f"\n[{i:02d}] {text}\n"
+    # Build timestamped segments for the prompt
+    timed_segments = ""
+    for i, seg in enumerate(segments):
+        timed_segments += f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text'].strip()}\n"
 
-    prompt = f"""You are helping generate image search queries for a YouTube video.
+    prompt = f"""You are a video editor deciding which images to show in a YouTube video, and WHEN to show them.
 
-Here is the FULL transcript of the video for context — read it first so you understand
-the overall topic, the people involved, and the story being told:
+Here is the FULL transcript with timestamps:
 
---- FULL TRANSCRIPT ---
-{full_transcript}
---- END TRANSCRIPT ---
+{timed_segments}
 
-Now, the transcript has been split into numbered sections below. For each section, generate ONE short,
-specific, highly searchable image query that captures the KEY visual concept of that section.
+Your job: Split this into visual SECTIONS. Each section = one image shown on screen.
 
-IMPORTANT: Every query must be relevant to the OVERALL VIDEO TOPIC above. Keep the main subject,
-people, and theme in mind when choosing queries — don't generate generic queries that ignore the
-video's context.
+CRITICAL RULES:
+1. EVERY time a person's name is mentioned, they MUST get their own section with their image — even if it's only 1-2 seconds long. If the narrator says "players like Drogba, Anelka and Kalou", that's THREE separate sections (one image per player).
+2. EVERY time a football team or club is mentioned by name (e.g. Chelsea, Barcelona, Real Madrid, Simba SC, TP Mazembe), it MUST get its own section with an image of that team — their badge, stadium, or team photo. If a sentence says "he moved from Chelsea to Liverpool", that requires sections for BOTH clubs.
+3. CONTEXT MATTERS: If we talk about Sturridge at Chelsea, the query must be "Daniel Sturridge Chelsea FC photos". If we then discuss his move to Liverpool, the query becomes "Daniel Sturridge Liverpool FC photos". Always include the correct team/era/event context.
+4. Each section should last between 1 and 8 seconds maximum. If a passage talks about the same thing for longer than 8 seconds, split it into multiple sections with the same or related queries.
+5. The images MUST match what the narrator is saying AT THAT MOMENT. Don't show generic images when specific people/events/places/teams are being discussed.
+6. Use the exact timestamps from the transcript — don't guess. Each section's start_time and end_time must come from the segment timestamps.
+7. Sections must be contiguous — no gaps, no overlaps. One section's end_time = next section's start_time.
+8. Every search query MUST end with "photos".
+9. Keep search queries 4-8 words, specific, and searchable on Google/Brave Images.
 
-RULES:
-- Every query MUST end with the word "photos"
-- Use real names of people, places, clubs, competitions, events when mentioned
-- Be specific and descriptive (e.g. "Mbwana Samatta celebrating goal Aston Villa photos" not "footballer scoring photos")
-- Keep queries between 4-8 words (including "photos")
-- The query should return relevant images when searched on Google/Brave image search
-- If the section mentions a specific event, include the year if available
-- Do NOT use generic filler words — every word should help find the right image
-- Remember the video's main subject when generating ALL queries
+RESPOND WITH ONLY a JSON array of objects, each with:
+- "start_time": number (seconds)
+- "end_time": number (seconds)  
+- "search_query": string (ending in "photos")
+- "text": string (the narration text for this section)
 
-SECTIONS:
-{numbered}
-
-Respond with ONLY a JSON array of strings, one query per section, in order. Example format:
-["Mbwana Samatta Simba SC football photos", "TP Mazembe football stadium photos", ...]
-
-Return exactly {len(sections_text)} queries."""
+Example:
+[
+  {{"start_time": 0.0, "end_time": 3.5, "search_query": "Chelsea FC Stamford Bridge stadium photos", "text": "Chelsea Football Club has a rich history..."}},
+  {{"start_time": 3.5, "end_time": 5.2, "search_query": "Didier Drogba Chelsea celebration photos", "text": "Star players like Didier Drogba,"}},
+  {{"start_time": 5.2, "end_time": 6.8, "search_query": "Nicolas Anelka Chelsea FC photos", "text": "Nicolas Anelka,"}},
+  {{"start_time": 6.8, "end_time": 8.5, "search_query": "Solomon Kalou Chelsea FC photos", "text": "and Solomon Kalou all played for the Blues."}}
+]"""
 
     response = groq_client.chat.completions.create(
         model='llama-3.3-70b-versatile',
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that outputs only valid JSON."},
+            {"role": "system", "content": "You are a professional video editor. Output only valid JSON. Be precise with timestamps."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0.7
+        temperature=0.5
     )
 
     text = response.choices[0].message.content.strip()
@@ -223,32 +224,23 @@ Return exactly {len(sections_text)} queries."""
         text = re.sub(r'^```(?:json)?\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
 
-    queries = json.loads(text)
+    sections = json.loads(text)
 
-    if len(queries) != len(sections_text):
-        print(f"WARNING: Groq returned {len(queries)} queries for {len(sections_text)} sections")
-        while len(queries) < len(sections_text):
-            queries.append("related topic photos")
-        queries = queries[:len(sections_text)]
-
-    for i, q in enumerate(queries):
+    # Validate and fix queries
+    for i, s in enumerate(sections):
+        q = s.get('search_query', 'related topic photos')
         if not q.strip().lower().endswith('photos'):
-            queries[i] = q.strip() + ' photos'
+            q = q.strip() + ' photos'
+        sections[i]['search_query'] = q
 
-    return queries
+    return sections
 
 
-def process_audio(audio_path, max_sentences_per_section=3):
+def process_audio(audio_path):
     """
-    Main function: transcribes audio, segments the transcript into sections
-    with accurate timestamps, and generates image search queries.
-
-    Args:
-        audio_path: path to the narration audio file
-        max_sentences_per_section: max segments grouped per section
-
-    Returns:
-        list of dicts with number, search_query, text, start_time, end_time, images_needed
+    Main function: transcribes audio, sends timestamped segments to Groq
+    which intelligently splits into visual sections (one image per person/topic),
+    and returns the final sections list.
     """
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -261,49 +253,62 @@ def process_audio(audio_path, max_sentences_per_section=3):
 
     print(f"\nTranscript preview: {full_text[:200]}...")
 
-    # Group into sections using segments (preferred) or words (fallback)
-    if segments:
-        print(f"\nUsing {len(segments)} Whisper segments for timing")
-        raw_sections = group_segments_into_sections(segments, max_sentences_per_section)
-    elif words:
-        print(f"\nUsing {len(words)} word-level timestamps for timing")
-        raw_sections = group_words_into_sections(words, audio_duration, max_sentences_per_section)
-    else:
-        raise ValueError("Transcription returned no words or segments")
+    # We need segments with timestamps for the AI sectioning
+    if not segments:
+        # Build pseudo-segments from words as fallback
+        if words:
+            print(f"\nNo segments from Whisper, building from {len(words)} words...")
+            current_words = []
+            segments = []
+            for w in words:
+                current_words.append(w)
+                if w['word'].rstrip().endswith(('.', '!', '?')) or len(current_words) >= 20:
+                    segments.append({
+                        "text": ' '.join(cw['word'] for cw in current_words),
+                        "start": current_words[0]['start'],
+                        "end": current_words[-1]['end'],
+                    })
+                    current_words = []
+            if current_words:
+                segments.append({
+                    "text": ' '.join(cw['word'] for cw in current_words),
+                    "start": current_words[0]['start'],
+                    "end": current_words[-1]['end'],
+                })
+        else:
+            raise ValueError("Transcription returned no words or segments")
 
-    print(f"Grouped into {len(raw_sections)} sections")
+    print(f"\nSending {len(segments)} timestamped segments to Groq for intelligent sectioning...")
+    ai_sections = generate_sections_with_groq(segments, full_text)
+    print(f"Groq created {len(ai_sections)} visual sections")
 
-    # Fill gaps by extending each section's end to the next section's start.
-    # This keeps images on screen through any silence, rather than showing
-    # the next topic's images before the narrator gets there.
-    raw_sections[0]['start_time'] = 0.0
-    for i in range(len(raw_sections) - 1):
-        gap_end = raw_sections[i + 1]['start_time']
-        if raw_sections[i]['end_time'] < gap_end:
-            raw_sections[i]['end_time'] = gap_end
-    raw_sections[-1]['end_time'] = audio_duration
+    # Fix timing: ensure sections are contiguous and cover full audio
+    if ai_sections:
+        ai_sections[0]['start_time'] = 0.0
+        for i in range(len(ai_sections) - 1):
+            # Close gaps by extending previous section
+            next_start = ai_sections[i + 1]['start_time']
+            if ai_sections[i]['end_time'] < next_start:
+                ai_sections[i]['end_time'] = next_start
+            # Fix overlaps by trimming current section
+            elif ai_sections[i]['end_time'] > next_start:
+                ai_sections[i]['end_time'] = next_start
+        ai_sections[-1]['end_time'] = audio_duration
 
-    # Extract section texts for query generation
-    sections_text = [s['text'] for s in raw_sections]
-
-    # Generate search queries
-    print("Generating search queries with Groq AI...")
-    search_queries = generate_search_queries_with_groq(sections_text, full_text)
-
-    MAX_SECONDS_PER_IMAGE = 8
-
+    # Build final sections array
     sections = []
-    for i, raw in enumerate(raw_sections):
+    for i, raw in enumerate(ai_sections):
         duration = raw['end_time'] - raw['start_time']
-        images_needed = max(1, math.ceil(duration / MAX_SECONDS_PER_IMAGE))
+        if duration <= 0:
+            continue
 
         section = {
-            "number": i + 1,
-            "search_query": search_queries[i],
-            "text": raw['text'],
+            "number": len(sections) + 1,
+            "search_query": raw['search_query'],
+            "text": raw.get('text', ''),
             "start_time": round(raw['start_time'], 2),
             "end_time": round(raw['end_time'], 2),
-            "images_needed": images_needed,
+            "images_needed": 1,  # One image per section now
         }
         sections.append(section)
 
@@ -315,7 +320,7 @@ def process_audio(audio_path, max_sentences_per_section=3):
     for s in sections:
         duration = s['end_time'] - s['start_time']
         print(f"\n  [{s['number']:02d}] {s['search_query']}")
-        print(f"       Time: {s['start_time']:.1f}s - {s['end_time']:.1f}s ({duration:.1f}s) | {s['images_needed']} image(s)")
+        print(f"       Time: {s['start_time']:.1f}s - {s['end_time']:.1f}s ({duration:.1f}s)")
         print(f"       Text: {s['text'][:80]}{'...' if len(s['text']) > 80 else ''}")
 
     return sections
@@ -337,3 +342,12 @@ if __name__ == "__main__":
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(sections, f, indent=2)
     print(f"\nSections saved to {output_path}")
+
+    # Generate and save video title from first section's search query
+    first_query = sections[0]['search_query'].replace(' photos', '').strip()
+    title = re.sub(r'[^a-zA-Z0-9]+', '_', first_query).strip('_').lower() + '.mp4'
+    title_path = os.path.join(output_dir, 'video_title.txt')
+    with open(title_path, 'w', encoding='utf-8') as f:
+        f.write(title)
+    print(f"Video title: {title}")
+    print(f"Title saved to {title_path}")

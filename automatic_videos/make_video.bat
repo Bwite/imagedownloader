@@ -73,7 +73,12 @@ echo.
 :: Step 3 - Build video
 echo [Step 3/3] Building video...
 echo ============================================================
-"%PYTHON%" automatic_videos\video_builder.py automatic_videos\sections.json automatic_videos\image_folders.json "%AUDIO%" automatic_videos\output.mp4
+set "TITLE=output.mp4"
+if exist "automatic_videos\video_title.txt" (
+    set /p TITLE=<"automatic_videos\video_title.txt"
+)
+echo Output filename: %TITLE%
+"%PYTHON%" automatic_videos\video_builder.py automatic_videos\sections.json automatic_videos\image_folders.json "%AUDIO%" "automatic_videos\%TITLE%"
 if errorlevel 1 (
     echo.
     echo ERROR: Step 3 failed.
@@ -83,7 +88,7 @@ if errorlevel 1 (
 
 echo.
 echo ============================================================
-echo   DONE! Video saved to: automatic_videos\output.mp4
+echo   DONE! Video saved to: automatic_videos\%TITLE%
 echo ============================================================
 echo.
 pause
