@@ -7,6 +7,7 @@ import requests
 import os
 import time
 from urllib.parse import urlparse
+from PIL import Image
 
 class BraveImageDownloader:
     def __init__(self, api_key):
@@ -107,9 +108,10 @@ class BraveImageDownloader:
         return '.jpg'
     
     def download_images(self, query, count=50):
-        """Download images for a given query"""
-        # Search for images
-        results = self.search_images(query, count)
+        """Download images for a given query, retrying from extra results on failure."""
+        # Request extra results so we have fallbacks if some fail
+        search_count = max(count * 3, 20)
+        results = self.search_images(query, search_count)
         if not results:
             return
         
@@ -121,15 +123,24 @@ class BraveImageDownloader:
         
        
         downloaded = 0
-        for i, img in enumerate(results, 1):
+        result_idx = 0
+        while downloaded < count and result_idx < len(results):
+            img = results[result_idx]
+            result_idx += 1
             try:
-                # Get image URL from the result
-                img_url = img.get('src')
+                # Get image URL - prefer full-size properties.url
+                img_url = None
+                if 'properties' in img and isinstance(img['properties'], dict):
+                    img_url = img['properties'].get('url')
+                if not img_url and 'thumbnail' in img and isinstance(img['thumbnail'], dict):
+                    img_url = img['thumbnail'].get('src')
                 if not img_url:
-                    print(f" No image URL found for result {i}")
+                    img_url = img.get('src')
+                if not img_url:
+                    print(f"  No URL for result {result_idx}, trying next...")
                     continue
                 
-                print(f"Downloading image {i}/{len(results)}...")
+                print(f"Downloading image {downloaded+1}/{count} (result {result_idx}/{len(results)})...")
                 
                 # Download the image
                 img_response = requests.get(img_url, timeout=15, stream=True)
@@ -140,7 +151,7 @@ class BraveImageDownloader:
                 file_ext = self.get_file_extension(img_url, content_type)
                 
                 # Create filename
-                filename = f"{folder_name}_{i:02d}{file_ext}"
+                filename = f"{folder_name}_{downloaded+1:02d}{file_ext}"
                 filepath = os.path.join(download_folder, filename)
                 
                 # Save the image
@@ -148,6 +159,17 @@ class BraveImageDownloader:
                     for chunk in img_response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 
+                # Enforce minimum 360p (640x360)
+                try:
+                    with Image.open(filepath) as pil_img:
+                        w, h = pil_img.size
+                        if w < 640 or h < 360:
+                            os.remove(filepath)
+                            print(f"  Too small ({w}x{h}), trying next...")
+                            continue
+                except Exception:
+                    pass
+
                 file_size = os.path.getsize(filepath) / 1024  # Size in KB
                 print(f"✅ Downloaded: {filename} ({file_size:.1f} KB)")
                 downloaded += 1
@@ -156,10 +178,12 @@ class BraveImageDownloader:
                 time.sleep(0.5)
                 
             except Exception as e:
-                print(f" Failed to download image {i}: {e}")
+                print(f"  Failed (result {result_idx}): {e} — trying next...")
                 continue
         
-        print(f"\n🎉 Successfully downloaded {downloaded} out of {len(results)} images to {download_folder}")
+        if downloaded < count:
+            print(f"⚠️ Only got {downloaded}/{count} images (ran out of results)")
+        print(f"\n🎉 Successfully downloaded {downloaded} images to {download_folder}")
         return download_folder
 
 def main():
@@ -202,7 +226,7 @@ def main():
         if folder:
             choice = input("\nOpen folder? (y/n): ").strip().lower()
             if choice in ['y', 'yes']:
-                os.startfile(folder)  # Windows specific
+                os.startfile(folder)  
 
 if __name__ == "__main__":
     main()
