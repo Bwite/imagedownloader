@@ -1,6 +1,5 @@
 """
-Brave Search Image Downloader
-Downloads images from Brave Search API to organized folders
+Image Downloader - Downloads images from SerpAPI (Google) with Brave as fallback
 """
 
 import requests
@@ -29,6 +28,57 @@ def _load_min_quality():
         quality = settings.get('min_image_quality', '360p')
         return QUALITY_MAP.get(quality, (640, 360))
     return (640, 360)
+
+
+class SerpAPIImageDownloader:
+    """Download images using SerpAPI (Google Images)."""
+    
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "https://serpapi.com/search"
+    
+    def search_images(self, query, count=50):
+        """Search for images using SerpAPI Google Images."""
+        min_w, min_h = _load_min_quality()
+        
+        params = {
+            "engine": "google_images",
+            "q": query,
+            "num": min(count * 3, 100),  # Request extra for filtering
+            "api_key": self.api_key,
+            "safe": "off",
+            "imgsz": "l",  # Large images
+        }
+        
+        try:
+            print(f"SerpAPI: Searching for '{query}'...")
+            response = requests.get(self.base_url, params=params, timeout=30)
+            
+            if response.status_code != 200:
+                print(f"SerpAPI Error {response.status_code}: {response.text[:200]}")
+                return []
+            
+            data = response.json()
+            results = data.get('images_results', [])
+            
+            # Pre-filter by dimensions
+            filtered = []
+            for img in results:
+                w = img.get('original_width', 0)
+                h = img.get('original_height', 0)
+                if w >= min_w and h >= min_h:
+                    filtered.append(img)
+            
+            if not filtered and results:
+                filtered = results  # Fallback to unfiltered
+            
+            print(f"SerpAPI: Found {len(filtered)} images (filtered from {len(results)})")
+            return filtered
+            
+        except Exception as e:
+            print(f"SerpAPI search failed: {e}")
+            return []
+
 
 class BraveImageDownloader:
     def __init__(self, api_key):
@@ -197,6 +247,131 @@ class BraveImageDownloader:
             print(f"⚠️ Only got {downloaded}/{count} images (ran out of results)")
         print(f"\n🎉 Successfully downloaded {downloaded} images to {download_folder}")
         return download_folder
+
+
+class ImageDownloader:
+    """Combined image downloader that tries SerpAPI (Google) first, then Brave as fallback."""
+    
+    def __init__(self, serpapi_key=None, brave_key=None):
+        self.serpapi = SerpAPIImageDownloader(serpapi_key) if serpapi_key else None
+        self.brave = BraveImageDownloader(brave_key) if brave_key else None
+        self.base_folder = os.path.join(os.getcwd(), "downloads")
+    
+    def get_file_extension(self, url, content_type=None):
+        """Get appropriate file extension from URL or content type"""
+        parsed_url = urlparse(url)
+        path = parsed_url.path
+        if path and '.' in path:
+            ext = path.split('.')[-1].lower().split('?')[0]
+            if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                return f".{ext}"
+        
+        if content_type:
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                return '.jpg'
+            elif 'png' in content_type:
+                return '.png'
+            elif 'gif' in content_type:
+                return '.gif'
+            elif 'webp' in content_type:
+                return '.webp'
+        
+        return '.jpg'
+    
+    def download_images(self, query, count=50, download_folder=None):
+        """Download images, trying SerpAPI first then Brave."""
+        results = []
+        source = None
+        
+        # Try SerpAPI first
+        if self.serpapi:
+            results = self.serpapi.search_images(query, count * 3)
+            if results:
+                source = 'serpapi'
+        
+        # Fall back to Brave
+        if not results and self.brave:
+            print("Falling back to Brave Search...")
+            results = self.brave.search_images(query, count * 3)
+            if results:
+                source = 'brave'
+        
+        if not results:
+            print(f"No results from any source for '{query}'")
+            return None
+        
+        # Create folder
+        if download_folder is None:
+            folder_name = query.replace(' ', '_').replace('/', '_').replace('\\', '_')
+            download_folder = os.path.join(self.base_folder, folder_name)
+        os.makedirs(download_folder, exist_ok=True)
+        
+        downloaded = 0
+        result_idx = 0
+        while downloaded < count and result_idx < len(results):
+            img = results[result_idx]
+            result_idx += 1
+            
+            try:
+                # Get image URL based on source
+                if source == 'serpapi':
+                    img_url = img.get('original')
+                    if not img_url:
+                        img_url = img.get('thumbnail')
+                else:  # Brave
+                    img_url = None
+                    if 'properties' in img and isinstance(img['properties'], dict):
+                        img_url = img['properties'].get('url')
+                    if not img_url and 'thumbnail' in img and isinstance(img['thumbnail'], dict):
+                        img_url = img['thumbnail'].get('src')
+                    if not img_url:
+                        img_url = img.get('src')
+                
+                if not img_url:
+                    continue
+                
+                # Download the image
+                img_response = requests.get(img_url, timeout=15, stream=True, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
+                img_response.raise_for_status()
+                
+                # Get extension and create filename
+                content_type = img_response.headers.get('content-type', '')
+                file_ext = self.get_file_extension(img_url, content_type)
+                folder_name = os.path.basename(download_folder)
+                filename = f"{folder_name}_{downloaded+1:02d}{file_ext}"
+                filepath = os.path.join(download_folder, filename)
+                
+                # Save the image
+                with open(filepath, 'wb') as f:
+                    for chunk in img_response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                
+                # Verify minimum quality
+                min_w, min_h = _load_min_quality()
+                try:
+                    with Image.open(filepath) as pil_img:
+                        w, h = pil_img.size
+                        if w < min_w or h < min_h:
+                            os.remove(filepath)
+                            continue
+                except Exception:
+                    pass
+                
+                file_size = os.path.getsize(filepath) / 1024
+                print(f"✅ Downloaded: {filename} ({file_size:.1f} KB)")
+                downloaded += 1
+                time.sleep(0.3)
+                
+            except Exception as e:
+                continue
+        
+        if downloaded < count:
+            print(f"⚠️ Only got {downloaded}/{count} images")
+        print(f"Downloaded {downloaded} images to {download_folder}")
+        return download_folder
+
 
 def main():
     # Get API key from environment variable

@@ -10,12 +10,18 @@ import json
 import glob
 import random
 import numpy as np
+import requests
+import time
 from moviepy import (
     ImageClip, AudioFileClip, concatenate_videoclips,
     ColorClip, VideoClip, CompositeVideoClip
 )
 from moviepy.video.fx import CrossFadeIn, FadeIn, FadeOut, SlideIn, SlideOut
 from PIL import Image
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 
 # ---- Settings loading ----
@@ -54,9 +60,137 @@ KB_SCALE = float(_settings['ken_burns_scale'])
 TRANSITION_TYPES = _settings['transition_types']
 BITRATE = _settings['bitrate']
 
+# Cache for downloaded fallback images
+_fallback_cache = {}
+
+
+def get_main_subject():
+    """Extract the main subject from settings (first tag or from description)."""
+    settings = load_settings()
+    tags = settings.get('tags', [])
+    if tags:
+        return tags[0]  # First tag is usually the main subject
+    
+    # Try to extract from description (first capitalized name-like words)
+    description = settings.get('description', '')
+    if description:
+        # Return first few words as fallback subject
+        words = description.split()[:3]
+        return ' '.join(words) if words else None
+    return None
+
+
+def download_fallback_image(subject, folder_path):
+    """Download a fallback image for the given subject using SerpAPI or Brave."""
+    if not subject:
+        return None
+    
+    # Check cache first
+    cache_key = subject.lower()
+    if cache_key in _fallback_cache and os.path.exists(_fallback_cache[cache_key]):
+        return _fallback_cache[cache_key]
+    
+    serpapi_key = os.getenv('SERPAPI_API_KEY')
+    brave_key = os.getenv('BRAVE_API_KEY')
+    
+    if not serpapi_key and not brave_key:
+        return None
+    
+    print(f"  Downloading fallback image for: {subject}")
+    
+    # Try SerpAPI first
+    img_url = None
+    if serpapi_key:
+        try:
+            params = {
+                "engine": "google_images",
+                "q": subject,
+                "num": 5,
+                "api_key": serpapi_key,
+                "safe": "off",
+                "imgsz": "l",
+            }
+            response = requests.get("https://serpapi.com/search", params=params, timeout=15)
+            if response.status_code == 200:
+                results = response.json().get('images_results', [])
+                if results:
+                    img_url = results[0].get('original')
+        except Exception:
+            pass
+    
+    # Fall back to Brave
+    if not img_url and brave_key:
+        try:
+            headers = {"Accept": "application/json", "X-Subscription-Token": brave_key}
+            params = {"q": subject, "count": 5, "safesearch": "off", "size": "Large"}
+            response = requests.get("https://api.search.brave.com/res/v1/images/search", 
+                                   headers=headers, params=params, timeout=15)
+            if response.status_code == 200:
+                results = response.json().get('results', [])
+                if results:
+                    img = results[0]
+                    if 'properties' in img and isinstance(img['properties'], dict):
+                        img_url = img['properties'].get('url')
+                    if not img_url:
+                        img_url = img.get('src')
+        except Exception:
+            pass
+    
+    if not img_url:
+        return None
+    
+    # Download the image
+    try:
+        img_response = requests.get(img_url, timeout=15, stream=True, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        img_response.raise_for_status()
+        
+        # Determine extension
+        content_type = img_response.headers.get('content-type', '')
+        ext = '.jpg'
+        if 'png' in content_type:
+            ext = '.png'
+        elif 'webp' in content_type:
+            ext = '.webp'
+        
+        # Save to folder
+        safe_name = subject.replace(' ', '_').replace('/', '_')[:30]
+        filepath = os.path.join(folder_path, f"_fallback_{safe_name}{ext}")
+        
+        with open(filepath, 'wb') as f:
+            for chunk in img_response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Verify it's valid
+        if is_valid_image(filepath):
+            _fallback_cache[cache_key] = filepath
+            print(f"  ✅ Downloaded fallback: {os.path.basename(filepath)}")
+            return filepath
+        else:
+            os.remove(filepath)
+            return None
+            
+    except Exception as e:
+        print(f"  Failed to download fallback: {e}")
+        return None
+
+
+def is_valid_image(image_path):
+    """Check if an image file is valid and not corrupted."""
+    try:
+        with Image.open(image_path) as img:
+            img.verify()  # Verify it's a valid image
+        # Re-open and try to load pixels (verify doesn't catch all issues)
+        with Image.open(image_path) as img:
+            img.load()
+        return True
+    except Exception:
+        return False
+
 
 def get_images_from_folder(folder_path):
-    """Get sorted list of image files from a folder."""
+    """Get sorted list of valid image files from a folder. Downloads fallback for corrupt images."""
     if not folder_path or not os.path.exists(folder_path):
         return []
 
@@ -66,7 +200,33 @@ def get_images_from_folder(folder_path):
         images.extend(glob.glob(os.path.join(folder_path, ext)))
 
     images.sort()
-    return images
+    
+    # Filter out corrupted images, replacing with fallback if possible
+    valid_images = []
+    main_subject = get_main_subject()
+    
+    for img_path in images:
+        # Skip any existing fallback images in the count
+        if '_fallback_' in os.path.basename(img_path):
+            if is_valid_image(img_path):
+                valid_images.append(img_path)
+            continue
+            
+        if is_valid_image(img_path):
+            valid_images.append(img_path)
+        else:
+            print(f"  Warning: Corrupt image: {os.path.basename(img_path)}")
+            # Try to download a fallback image of the main subject
+            if main_subject:
+                fallback = download_fallback_image(main_subject, folder_path)
+                if fallback:
+                    valid_images.append(fallback)
+                else:
+                    print(f"  Could not download fallback, skipping...")
+            else:
+                print(f"  No main subject for fallback, skipping...")
+    
+    return valid_images
 
 
 def prepare_ken_burns_image(image_path):

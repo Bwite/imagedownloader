@@ -1,6 +1,6 @@
 """
 Downloader - Takes the sections array from handlescript.py and downloads
-images for each section using the existing Brave Image Downloader.
+images for each section using SerpAPI (Google) with Brave as fallback.
 Each section specifies how many images it needs based on its duration
 (1 image per 8 seconds max).
 """
@@ -15,12 +15,12 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from dotenv import load_dotenv
-from brave_image_downloader import BraveImageDownloader
+from brave_image_downloader import ImageDownloader
 
 
 def download_section_images(sections, output_dir=None):
     """
-    Download images for each section using the Brave Image Downloader.
+    Download images for each section using SerpAPI (Google) with Brave fallback.
     The number of images per section is determined by section['images_needed'].
 
     Args:
@@ -31,14 +31,14 @@ def download_section_images(sections, output_dir=None):
     Returns:
         dict mapping section number -> folder path where images were saved
     """
-    # Load environment variables for API key
+    # Load environment variables for API keys
     load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-    api_key = os.getenv('BRAVE_API_KEY')
+    serpapi_key = os.getenv('SERPAPI_API_KEY')
+    brave_key = os.getenv('BRAVE_API_KEY')
 
-    if not api_key:
+    if not serpapi_key and not brave_key:
         raise ValueError(
-            "BRAVE_API_KEY not found. Please set it in the .env file "
-            "in the project root directory."
+            "No image API keys found. Please set SERPAPI_API_KEY or BRAVE_API_KEY in the .env file."
         )
 
     # Set up output directory — unique timestamped folder per generation
@@ -47,8 +47,8 @@ def download_section_images(sections, output_dir=None):
         output_dir = os.path.join(os.path.dirname(__file__), f'images_{timestamp}')
     os.makedirs(output_dir, exist_ok=True)
 
-    # Create downloader instance and override its base folder
-    downloader = BraveImageDownloader(api_key)
+    # Create combined downloader (SerpAPI first, Brave fallback)
+    downloader = ImageDownloader(serpapi_key=serpapi_key, brave_key=brave_key)
     downloader.base_folder = output_dir
 
     total_images = sum(s.get('images_needed', 1) for s in sections)
