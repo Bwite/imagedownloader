@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import time
+from datetime import datetime
 
 # Add parent directory to path so we can import the existing downloader
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -40,9 +41,10 @@ def download_section_images(sections, output_dir=None):
             "in the project root directory."
         )
 
-    # Set up output directory
+    # Set up output directory — unique timestamped folder per generation
     if output_dir is None:
-        output_dir = os.path.join(os.path.dirname(__file__), 'images')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_dir = os.path.join(os.path.dirname(__file__), f'images_{timestamp}')
     os.makedirs(output_dir, exist_ok=True)
 
     # Create downloader instance and override its base folder

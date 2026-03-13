@@ -14,16 +14,45 @@ from moviepy import (
     ImageClip, AudioFileClip, concatenate_videoclips,
     ColorClip, VideoClip, CompositeVideoClip
 )
-from moviepy.video.fx import CrossFadeIn
+from moviepy.video.fx import CrossFadeIn, FadeIn, FadeOut, SlideIn, SlideOut
 from PIL import Image
 
 
-# Output video settings
-VIDEO_WIDTH = 1920
-VIDEO_HEIGHT = 1080
-FPS = 24
-CROSSFADE_DURATION = 0.5  # seconds of crossfade between images
-KB_SCALE = 1.15            # Ken Burns: image scaled 15% larger than video
+# ---- Settings loading ----
+SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.json')
+
+def load_settings():
+    """Load settings from settings.json, returning defaults if not found."""
+    defaults = {
+        'resolution': '1080p',
+        'fps': 24,
+        'ken_burns_scale': 1.15,
+        'transition_duration': 0.5,
+        'transition_types': ['crossfade'],
+        'bitrate': '5000k',
+    }
+    if os.path.exists(SETTINGS_PATH):
+        with open(SETTINGS_PATH, 'r', encoding='utf-8') as f:
+            saved = json.load(f)
+        defaults.update(saved)
+    return defaults
+
+# Load settings at module level so all functions can use them
+_settings = load_settings()
+
+# Output video settings (from settings.json)
+if _settings['resolution'] == '720p':
+    VIDEO_WIDTH = 1280
+    VIDEO_HEIGHT = 720
+else:
+    VIDEO_WIDTH = 1920
+    VIDEO_HEIGHT = 1080
+
+FPS = int(_settings['fps'])
+CROSSFADE_DURATION = float(_settings['transition_duration'])
+KB_SCALE = float(_settings['ken_burns_scale'])
+TRANSITION_TYPES = _settings['transition_types']
+BITRATE = _settings['bitrate']
 
 
 def get_images_from_folder(folder_path):
@@ -116,6 +145,35 @@ def create_ken_burns_clip(image_path, duration):
     return clip
 
 
+def _pick_transition_effect(duration):
+    """
+    Pick a random transition effect from the configured types.
+    Returns a list of moviepy effects to apply to the clip.
+    """
+    if not TRANSITION_TYPES or 'none' in TRANSITION_TYPES:
+        available = [t for t in TRANSITION_TYPES if t != 'none']
+        if not available:
+            return []
+        chosen = random.choice(available)
+    else:
+        chosen = random.choice(TRANSITION_TYPES)
+
+    if chosen == 'crossfade':
+        return [CrossFadeIn(duration)]
+    elif chosen == 'fade_black':
+        return [FadeIn(duration)]
+    elif chosen == 'slide_left':
+        return [SlideIn(duration, 'right')]  # slides in from right = appears from left
+    elif chosen == 'slide_right':
+        return [SlideIn(duration, 'left')]
+    elif chosen == 'slide_up':
+        return [SlideIn(duration, 'bottom')]
+    elif chosen == 'slide_down':
+        return [SlideIn(duration, 'top')]
+    else:
+        return [CrossFadeIn(duration)]
+
+
 def build_section_clip(image_paths, duration):
     """
     Build a clip for one section with Ken Burns on every image
@@ -145,13 +203,15 @@ def build_section_clip(image_paths, duration):
         total_overlap = (num_images - 1) * CROSSFADE_DURATION
         time_per_image = (duration + total_overlap) / num_images
 
-    # Build each Ken Burns clip with crossfade-in, placed at staggered starts
+    # Build each Ken Burns clip with transition, placed at staggered starts
     clips = []
     current_start = 0
     for idx, img_path in enumerate(image_paths):
         clip = create_ken_burns_clip(img_path, time_per_image)
         if idx > 0:
-            clip = clip.with_effects([CrossFadeIn(CROSSFADE_DURATION)])
+            effects = _pick_transition_effect(CROSSFADE_DURATION)
+            if effects:
+                clip = clip.with_effects(effects)
         clip = clip.with_start(current_start)
         clips.append(clip)
         current_start += time_per_image - CROSSFADE_DURATION
@@ -220,7 +280,7 @@ def build_video(sections, section_folders, audio_path, output_path="output.mp4")
         fps=FPS,
         codec='libx264',
         audio_codec='aac',
-        bitrate='5000k',
+        bitrate=BITRATE,
         threads=4,
         logger='bar',
         ffmpeg_params=['-pix_fmt', 'yuv420p', '-movflags', '+faststart']

@@ -1,97 +1,57 @@
 [
   {
     "number": 1,
-    "search_query": "John O.B. Meikle English football photos",
-    "text": "Few transfer sagas in English football were as dramatic as the battle for John O.B. Meikle.",
+    "search_query": "John Obi Mikel teenage midfielder",
+    "text": "Few transfer sagas in English football were as dramatic as the battle for John Obi Mikel.",
     "start_time": 0.0,
-    "end_time": 4.7,
+    "end_time": 7.0,
     "images_needed": 1
   },
   {
     "number": 2,
-    "search_query": "Manchester United FC photos",
-    "text": "In 2005, the teenage midfielder was widely believed to be heading to Manchester United",
-    "start_time": 4.7,
-    "end_time": 9.4,
+    "search_query": "Manchester United FC Old Trafford",
+    "text": "In 2005, the teenage midfielder was widely believed to be heading to Manchester United F.C.",
+    "start_time": 7.0,
+    "end_time": 14.0,
     "images_needed": 1
   },
   {
     "number": 3,
-    "search_query": "Lin Fotbal Norwegian football team photos",
-    "text": "FC after the club announced they had reached an agreement with Norwegian side Lin Fotbal.",
-    "start_time": 9.4,
-    "end_time": 14.3,
+    "search_query": "Lyn Fotball Norwegian football club",
+    "text": "after the club announced they had reached an agreement with Norwegian side Lyn Fotball.",
+    "start_time": 14.0,
+    "end_time": 21.0,
     "images_needed": 1
   },
   {
     "number": 4,
-    "search_query": "John O.B. Meikle pressured deal photos",
-    "text": "But the story took a stunning turn. Meikle later claimed he had been pressured into that deal and",
-    "start_time": 14.3,
-    "end_time": 18.8,
+    "search_query": "John Obi Mikel pressured deal",
+    "text": "But the story took a stunning turn. Mikel later claimed he had been pressured into that deal",
+    "start_time": 21.0,
+    "end_time": 28.0,
     "images_needed": 1
   },
   {
     "number": 5,
-    "search_query": "John O.B. Meikle Chelsea FC interest photos",
-    "text": "insisted he actually wanted to join Chelsea FC instead.",
-    "start_time": 18.8,
-    "end_time": 23.9,
+    "search_query": "Chelsea FC Stamford Bridge stadium",
+    "text": "and insisted he actually wanted to join Chelsea F.C. instead.",
+    "start_time": 28.0,
+    "end_time": 35.0,
     "images_needed": 1
   },
   {
     "number": 6,
-    "search_query": "Chelsea FC photos",
-    "text": "What followed was months of legal battles,",
-    "start_time": 23.9,
-    "end_time": 24.3,
+    "search_query": "English football legal battles",
+    "text": "What followed was months of legal battles, accusations, and negotiations involving both clubs and football authorities.",
+    "start_time": 35.0,
+    "end_time": 42.0,
     "images_needed": 1
   },
   {
     "number": 7,
-    "search_query": "English football legal battles photos",
-    "text": "accusations, and negotiations involving both clubs and football authorities.",
-    "start_time": 24.3,
-    "end_time": 28.9,
-    "images_needed": 1
-  },
-  {
-    "number": 8,
-    "search_query": "Chelsea FC John O.B. Meikle signing photos",
-    "text": "Eventually, a compromise was reached in 2006. Chelsea secured Meikle's signature,",
-    "start_time": 28.9,
-    "end_time": 33.7,
-    "images_needed": 1
-  },
-  {
-    "number": 9,
-    "search_query": "Lynn football team photos",
-    "text": "paying compensation to both Lynn and",
-    "start_time": 33.7,
-    "end_time": 34.1,
-    "images_needed": 1
-  },
-  {
-    "number": 10,
-    "search_query": "Manchester United FC compensation photos",
-    "text": "Manchester United. For Alex Ferguson, it was a rare transfer",
-    "start_time": 34.1,
-    "end_time": 39.3,
-    "images_needed": 1
-  },
-  {
-    "number": 11,
-    "search_query": "Alex Ferguson Manchester United FC photos",
-    "text": "defeat, while Chelsea had effectively snatched one of Africa's brightest young talents right",
-    "start_time": 39.3,
-    "end_time": 43.9,
-    "images_needed": 1
-  },
-  {
-    "number": 12,
-    "search_query": "John O.B. Meikle Chelsea FC success photos",
-    "text": "from United's grasp.",
-    "start_time": 43.9,
+    "search_query": "Alex Ferguson Manchester United manager",
+    "text": "Eventually, a compromise was reached in 2006. Chelsea secured Mikel\u2019s signature, paying compensation to both Lyn and Manchester United. For Alex Ferguson, it was a rare transfer defeat",
+    "start_time": 42.0,
     "end_time": 45.26,
     "images_needed": 1
   }

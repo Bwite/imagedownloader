@@ -5,9 +5,30 @@ Downloads images from Brave Search API to organized folders
 
 import requests
 import os
+import json
 import time
 from urllib.parse import urlparse
 from PIL import Image
+
+
+# Map quality labels to minimum pixel dimensions (width, height)
+QUALITY_MAP = {
+    '360p': (640, 360),
+    '480p': (854, 480),
+    '720p': (1280, 720),
+    '1080p': (1920, 1080),
+}
+
+
+def _load_min_quality():
+    """Load minimum image quality from settings.json if available."""
+    settings_path = os.path.join(os.path.dirname(__file__), 'automatic_videos', 'settings.json')
+    if os.path.exists(settings_path):
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+        quality = settings.get('min_image_quality', '360p')
+        return QUALITY_MAP.get(quality, (640, 360))
+    return (640, 360)
 
 class BraveImageDownloader:
     def __init__(self, api_key):
@@ -20,69 +41,59 @@ class BraveImageDownloader:
         self.base_folder = os.path.join(os.getcwd(), "downloads")
         
     def search_images(self, query, count=50, min_size=None):
-        """Search for images using Brave Search API and filter by minimum size"""
-        # Request more results to account for filtering
-        request_count = count * 3 if min_size else count
-        request_count = min(request_count, 150)  # API limit
-        
+        """Search for images using Brave Search API, requesting large images and pre-filtering small ones."""
+        request_count = min(max(count * 3, 20), 150)
+
+        # Determine minimum quality from settings for pre-filtering
+        min_w, min_h = _load_min_quality()
+
         params = {
             "q": query,
             "count": request_count,
-            "safesearch": "off"
+            "safesearch": "off",
+            "size": "Large",
         }
-        
+
         try:
-            print(f"Searching for '{query}'...")
+            print(f"Searching for '{query}' (size=Large)...")
             response = requests.get(self.base_url, headers=self.headers, params=params)
-            
+
             if response.status_code != 200:
-                print(f"❌ API Error {response.status_code}: {response.text}")
-                return []
-                
+                print(f"API Error {response.status_code}, retrying without size filter...")
+                del params['size']
+                response = requests.get(self.base_url, headers=self.headers, params=params)
+                if response.status_code != 200:
+                    print(f"API Error {response.status_code}: {response.text}")
+                    return []
+
             data = response.json()
             results = data.get('results', [])
-            
-            # Filter by size if minimum size is specified
-            if min_size:
-                min_width, min_height = min_size
-                filtered_results = []
-                
-                for img in results:
-                    if 'properties' in img and isinstance(img['properties'], dict):
-                        props = img['properties']
-                        width = props.get('width')
-                        height = props.get('height')
-                        
-                        if width and height:
-                            try:
-                                if int(width) >= min_width and int(height) >= min_height:
-                                    filtered_results.append(img)
-                                    if len(filtered_results) >= count:
-                                        break
-                            except:
+
+            # Pre-filter: skip results where reported dimensions are too small
+            filtered = []
+            for img in results:
+                props = img.get('properties', {})
+                if isinstance(props, dict):
+                    w = props.get('width')
+                    h = props.get('height')
+                    if w and h:
+                        try:
+                            if int(w) < min_w or int(h) < min_h:
                                 continue
-                        else:
-                            # If no size info, include it
-                            filtered_results.append(img)
-                            if len(filtered_results) >= count:
-                                break
-                    else:
-                        # If no properties, include it
-                        filtered_results.append(img)
-                        if len(filtered_results) >= count:
-                            break
-                
-                results = filtered_results
-                print(f"✅ Found {len(results)} images matching size requirements")
-            else:
-                print(f"✅ Found {len(results)} images")
-            
-            return results
-            
+                        except (ValueError, TypeError):
+                            pass
+                filtered.append(img)
+
+            if not filtered and results:
+                filtered = results  # fallback to unfiltered if all were too small
+
+            print(f"Found {len(filtered)} images (filtered from {len(results)})")
+            return filtered
+
         except Exception as e:
-            print(f"❌ Search failed: {e}")
+            print(f"Search failed: {e}")
             return []
-    
+
     def get_file_extension(self, url, content_type=None):
         """Get appropriate file extension from URL or content type"""
         # Try to get extension from URL
@@ -159,13 +170,14 @@ class BraveImageDownloader:
                     for chunk in img_response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 
-                # Enforce minimum 360p (640x360)
+                # Enforce minimum image quality from settings
+                min_w, min_h = _load_min_quality()
                 try:
                     with Image.open(filepath) as pil_img:
                         w, h = pil_img.size
-                        if w < 640 or h < 360:
+                        if w < min_w or h < min_h:
                             os.remove(filepath)
-                            print(f"  Too small ({w}x{h}), trying next...")
+                            print(f"  Too small ({w}x{h}, need {min_w}x{min_h}), trying next...")
                             continue
                 except Exception:
                     pass

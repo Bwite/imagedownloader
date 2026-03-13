@@ -19,13 +19,7 @@ if not exist "%PYTHON%" (
 echo Using Python: %PYTHON%
 echo.
 
-:: Clear images folder from previous run
-if exist "automatic_videos\images" (
-    echo Clearing previous images...
-    rmdir /s /q "automatic_videos\images"
-    echo Done.
-    echo.
-)
+:: (Images now stored in timestamped folders per generation, no cleanup needed)
 
 :: Find the audio file in automatic_videos folder
 set "AUDIO="

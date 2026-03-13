@@ -22,6 +22,28 @@ if not GROQ_API_KEY:
 
 groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
+SETTINGS_PATH = os.path.join(os.path.dirname(__file__), 'settings.json')
+
+def load_settings():
+    """Load settings from settings.json, returning defaults if not found."""
+    defaults = {
+        'resolution': '1080p',
+        'fps': 24,
+        'max_image_duration': 8,
+        'ken_burns_scale': 1.15,
+        'min_image_quality': '360p',
+        'bitrate': '5000k',
+        'transition_duration': 0.5,
+        'transition_types': ['crossfade'],
+        'description': '',
+        'tags': [],
+    }
+    if os.path.exists(SETTINGS_PATH):
+        with open(SETTINGS_PATH, 'r', encoding='utf-8') as f:
+            saved = json.load(f)
+        defaults.update(saved)
+    return defaults
+
 
 def get_audio_duration(audio_path):
     """Get duration of an audio file in seconds using mutagen."""
@@ -31,24 +53,31 @@ def get_audio_duration(audio_path):
     return audio.info.length
 
 
-def transcribe_audio(audio_path):
+def transcribe_audio(audio_path, description=''):
     """
     Transcribe audio using Groq's Whisper API with word-level timestamps.
-    Returns the full transcript text and a list of word objects with timestamps.
+    If a description is provided, it's used as a prompt to guide transcription
+    accuracy (correcting names, places, etc.).
     """
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
     print(f"Transcribing audio: {audio_path}")
+    if description:
+        print(f"Using description to guide transcription...")
     print("This may take a moment...")
 
+    whisper_kwargs = {
+        'model': 'whisper-large-v3-turbo',
+        'response_format': 'verbose_json',
+        'timestamp_granularities': ['word', 'segment'],
+    }
+    if description:
+        whisper_kwargs['prompt'] = description
+
     with open(audio_path, 'rb') as audio_file:
-        response = groq_client.audio.transcriptions.create(
-            model="whisper-large-v3-turbo",
-            file=audio_file,
-            response_format="verbose_json",
-            timestamp_granularities=["word", "segment"],
-        )
+        whisper_kwargs['file'] = audio_file
+        response = groq_client.audio.transcriptions.create(**whisper_kwargs)
 
     full_text = response.text
     words = []
@@ -165,49 +194,73 @@ def group_words_into_sections(words, audio_duration, max_sentences_per_section=3
     return sections
 
 
-def generate_sections_with_groq(segments, full_transcript):
+def generate_sections_with_groq(segments, full_transcript, settings):
     """
-    Send the timestamped segments to Groq and let AI decide how to split
-    the video into visual sections. Each person mentioned gets their own
-    image shown, and context (team, era, event) is respected.
-    Returns a list of section dicts with start_time, end_time, search_query.
+    Send the script + Whisper timestamps to Groq to split into visual sections.
+    The description field IS the script — used as ground truth text.
+    Whisper timestamps are used only for timing reference.
     """
-    # Build timestamped segments for the prompt
-    timed_segments = ""
-    for i, seg in enumerate(segments):
-        timed_segments += f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text'].strip()}\n"
+    max_dur = settings.get('max_image_duration', 8)
+    tags = settings.get('tags', [])
+    description = settings.get('description', '')
+
+    # Build timing reference from Whisper segments
+    timing_ref = ""
+    for seg in segments:
+        timing_ref += f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text'].strip()}\n"
+
+    first_start = segments[0]['start'] if segments else 0.0
+    last_end = segments[-1]['end'] if segments else 0.0
+
+    tags_block = ""
+    if tags:
+        tags_block = f"\nIMPORTANT TAGS — These people, clubs, and countries MUST get their own image sections whenever mentioned or relevant:\n{', '.join(tags)}\n"
+
+    # Use the script (description) as the authoritative text
+    script_text = description.strip() if description.strip() else full_transcript
 
     prompt = f"""You are a video editor deciding which images to show in a YouTube video, and WHEN to show them.
+{tags_block}
+HERE IS THE EXACT SCRIPT (this is the authoritative text — use this for all text content):
 
-Here is the FULL transcript with timestamps:
+{script_text}
 
-{timed_segments}
+HERE ARE THE AUDIO TIMESTAMPS from speech recognition (use ONLY for timing — the text may have errors):
 
-Your job: Split this into visual SECTIONS. Each section = one image shown on screen.
+{timing_ref}
+
+The audio runs from {first_start:.1f}s to {last_end:.1f}s.
+
+Your job: Split the SCRIPT into visual SECTIONS. Each section = one image shown on screen.
+Match each section of the script to the appropriate timestamps by aligning the content.
 
 CRITICAL RULES:
-1. EVERY time a person's name is mentioned, they MUST get their own section with their image — even if it's only 1-2 seconds long. If the narrator says "players like Drogba, Anelka and Kalou", that's THREE separate sections (one image per player).
-2. EVERY time a football team or club is mentioned by name (e.g. Chelsea, Barcelona, Real Madrid, Simba SC, TP Mazembe), it MUST get its own section with an image of that team — their badge, stadium, or team photo. If a sentence says "he moved from Chelsea to Liverpool", that requires sections for BOTH clubs.
-3. CONTEXT MATTERS: If we talk about Sturridge at Chelsea, the query must be "Daniel Sturridge Chelsea FC photos". If we then discuss his move to Liverpool, the query becomes "Daniel Sturridge Liverpool FC photos". Always include the correct team/era/event context.
-4. Each section should last between 1 and 8 seconds maximum. If a passage talks about the same thing for longer than 8 seconds, split it into multiple sections with the same or related queries.
-5. The images MUST match what the narrator is saying AT THAT MOMENT. Don't show generic images when specific people/events/places/teams are being discussed.
-6. Use the exact timestamps from the transcript — don't guess. Each section's start_time and end_time must come from the segment timestamps.
-7. Sections must be contiguous — no gaps, no overlaps. One section's end_time = next section's start_time.
-8. Every search query MUST end with "photos".
-9. Keep search queries 4-8 words, specific, and searchable on Google/Brave Images.
+1. Use the SCRIPT text as the definitive text — ignore any misspellings in the timestamps section.
+2. EVERY time a person's name is mentioned, they MUST get their own section — even if brief.
+3. EVERY time a football team or club is mentioned by name, it MUST get its own section.
+4. CONTEXT MATTERS: Always include the correct team/era/event context in search queries.
+5. TARGET DURATION: Each section should be approximately 7 seconds. Acceptable range: 3-{max_dur} seconds. Only go shorter for rapid name mentions.
+6. The images MUST match what the narrator is saying AT THAT MOMENT.
+7. Align timestamps by matching script content to the speech recognition text.
+8. Sections must be contiguous — no gaps, no overlaps.
+9. SEARCH QUERY RULES:
+   - Use the person's FULL NAME (e.g. "John Obi Mikel" not "Mikel")
+   - Include team/club context (e.g. "John Obi Mikel Chelsea midfielder")
+   - For events use descriptive terms (e.g. "Chelsea vs Barcelona Champions League 2012")
+   - Keep queries 3-7 words, specific, likely to return high-quality images
+   - Do NOT end queries with "photos" or "images"
+   - NEVER use the same search query twice — every section MUST have a unique query. Vary by adding context like position, era, event, team, or action.{chr(10) + '10. The following tags MUST have their images shown: ' + ', '.join(tags) if tags else ''}
 
 RESPOND WITH ONLY a JSON array of objects, each with:
 - "start_time": number (seconds)
-- "end_time": number (seconds)  
-- "search_query": string (ending in "photos")
-- "text": string (the narration text for this section)
+- "end_time": number (seconds)
+- "search_query": string (unique descriptive image search query — NO DUPLICATES)
+- "text": string (the exact SCRIPT text for this section)
 
 Example:
 [
-  {{"start_time": 0.0, "end_time": 3.5, "search_query": "Chelsea FC Stamford Bridge stadium photos", "text": "Chelsea Football Club has a rich history..."}},
-  {{"start_time": 3.5, "end_time": 5.2, "search_query": "Didier Drogba Chelsea celebration photos", "text": "Star players like Didier Drogba,"}},
-  {{"start_time": 5.2, "end_time": 6.8, "search_query": "Nicolas Anelka Chelsea FC photos", "text": "Nicolas Anelka,"}},
-  {{"start_time": 6.8, "end_time": 8.5, "search_query": "Solomon Kalou Chelsea FC photos", "text": "and Solomon Kalou all played for the Blues."}}
+  {{"start_time": 0.0, "end_time": 7.0, "search_query": "Chelsea FC Stamford Bridge stadium", "text": "Chelsea Football Club has a rich history at Stamford Bridge..."}},
+  {{"start_time": 7.0, "end_time": 14.0, "search_query": "Didier Drogba Chelsea celebration goal", "text": "Players like Didier Drogba defined an era..."}}
 ]"""
 
     response = groq_client.chat.completions.create(
@@ -226,11 +279,19 @@ Example:
 
     sections = json.loads(text)
 
-    # Validate and fix queries
+    # Validate queries and enforce uniqueness
+    seen_queries = set()
     for i, s in enumerate(sections):
-        q = s.get('search_query', 'related topic photos')
-        if not q.strip().lower().endswith('photos'):
-            q = q.strip() + ' photos'
+        q = s.get('search_query', '').strip()
+        if not q:
+            q = 'related topic'
+        # Deduplicate: append context variation if query was already used
+        base_q = q
+        counter = 2
+        while q.lower() in seen_queries:
+            q = f"{base_q} variant {counter}"
+            counter += 1
+        seen_queries.add(q.lower())
         sections[i]['search_query'] = q
 
     return sections
@@ -245,11 +306,15 @@ def process_audio(audio_path):
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
+    settings = load_settings()
+    description = settings.get('description', '')
+    print(f"Settings loaded (script: {'yes (' + str(len(description)) + ' chars)' if description else 'none'}, tags: {len(settings.get('tags', []))})") 
+
     audio_duration = get_audio_duration(audio_path)
     print(f"Audio duration: {audio_duration:.1f} seconds")
 
-    # Transcribe the audio
-    full_text, words, segments = transcribe_audio(audio_path)
+    # Transcribe the audio (pass description to guide Whisper)
+    full_text, words, segments = transcribe_audio(audio_path, description=settings.get('description', ''))
 
     print(f"\nTranscript preview: {full_text[:200]}...")
 
@@ -278,8 +343,30 @@ def process_audio(audio_path):
         else:
             raise ValueError("Transcription returned no words or segments")
 
+    # Filter out Whisper hallucinations — segments with nonsense text
+    # Whisper often hallucinates garbage when audio has silence/noise at the end
+    import unicodedata
+    def _is_hallucinated(text):
+        """Detect likely hallucinated segments from Whisper."""
+        t = text.strip()
+        if not t:
+            return True
+        # High ratio of non-Latin characters suggests hallucination
+        non_ascii = sum(1 for c in t if ord(c) > 127)
+        if len(t) > 0 and non_ascii / len(t) > 0.3:
+            return True
+        # Very short meaningless fragments (single numbers, single letters)
+        if len(t) <= 2:
+            return True
+        return False
+
+    original_count = len(segments)
+    segments = [s for s in segments if not _is_hallucinated(s['text'])]
+    if len(segments) < original_count:
+        print(f"\nFiltered {original_count - len(segments)} hallucinated segments (keeping {len(segments)})")
+
     print(f"\nSending {len(segments)} timestamped segments to Groq for intelligent sectioning...")
-    ai_sections = generate_sections_with_groq(segments, full_text)
+    ai_sections = generate_sections_with_groq(segments, full_text, settings)
     print(f"Groq created {len(ai_sections)} visual sections")
 
     # Fix timing: ensure sections are contiguous and cover full audio

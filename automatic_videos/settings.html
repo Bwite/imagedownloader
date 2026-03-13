@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Video Generator — Settings</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 36px;
+        }
+        .section {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title .icon {
+            font-size: 18px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .row.single {
+            grid-template-columns: 1fr;
+        }
+        .row:last-child { margin-bottom: 0; }
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #aaa;
+        }
+        input[type="number"],
+        input[type="text"],
+        select,
+        textarea {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #e0e0e0;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #4a9eff;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .help {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+        /* Transition pills */
+        .transition-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .transition-pill {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            background: #111;
+            color: #aaa;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .transition-pill:hover {
+            border-color: #555;
+            color: #ddd;
+        }
+        .transition-pill.active {
+            background: #1a3a5c;
+            border-color: #4a9eff;
+            color: #4a9eff;
+        }
+        /* Quality toggle */
+        .quality-toggle {
+            display: flex;
+            gap: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+        .quality-btn {
+            flex: 1;
+            padding: 10px 20px;
+            background: #111;
+            color: #aaa;
+            border: none;
+            font-size: 14px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .quality-btn:not(:last-child) {
+            border-right: 1px solid #333;
+        }
+        .quality-btn.active {
+            background: #1a3a5c;
+            color: #4a9eff;
+            font-weight: 600;
+        }
+        /* Upload area */
+        .upload-area {
+            border: 2px dashed #333;
+            border-radius: 12px;
+            padding: 40px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.05);
+        }
+        .upload-area .icon { font-size: 36px; margin-bottom: 12px; }
+        .upload-area .text { color: #888; font-size: 14px; }
+        .upload-area .filename {
+            color: #4a9eff;
+            font-weight: 600;
+            font-size: 15px;
+            margin-top: 8px;
+        }
+        .upload-area input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        /* Range slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4a9eff;
+            cursor: pointer;
+        }
+        .range-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .range-row input[type="range"] { flex: 1; }
+        .range-value {
+            min-width: 50px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a9eff;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 6px 10px;
+        }
+        /* Buttons */
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .btn {
+            padding: 14px 32px;
+            border-radius: 10px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #4a9eff;
+            color: #fff;
+            flex: 1;
+        }
+        .btn-primary:hover { background: #3a8eef; }
+        .btn-primary:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #222;
+            color: #aaa;
+            border: 1px solid #333;
+        }
+        .btn-secondary:hover { background: #2a2a2a; color: #ddd; }
+        /* Status */
+        .status {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.success { background: #0d2818; border: 1px solid #1a5c30; color: #4ae080; }
+        .status.error { background: #2d0f0f; border: 1px solid #5c1a1a; color: #e04a4a; }
+        .status.info { background: #0f1a2d; border: 1px solid #1a3a5c; color: #4a9eff; }
+        /* Tags input */
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            min-height: 42px;
+            cursor: text;
+        }
+        .tags-container:focus-within { border-color: #4a9eff; }
+        .tag {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: #1a3a5c;
+            color: #4a9eff;
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 13px;
+        }
+        .tag .remove {
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            opacity: 0.7;
+        }
+        .tag .remove:hover { opacity: 1; }
+        .tags-input {
+            border: none;
+            background: transparent;
+            color: #e0e0e0;
+            font-size: 14px;
+            outline: none;
+            flex: 1;
+            min-width: 120px;
+            padding: 4px;
+        }
+        @media (max-width: 600px) {
+            .row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Auto Video Generator</h1>
+        <p class="subtitle">Configure settings and upload audio to generate a video automatically</p>
+
+        <!-- Audio Upload -->
+        <div class="section">
+            <div class="section-title"><span class="icon">🎵</span> Audio File</div>
+            <div class="upload-area" id="uploadArea">
+                <input type="file" id="audioFile" accept=".m4a,.mp3,.wav,.ogg,.flac,.aac">
+                <div class="icon">📁</div>
+                <div class="text">Drop audio file here or click to browse</div>
+                <div class="text" style="font-size:12px; margin-top:4px; color:#555">.m4a, .mp3, .wav, .ogg, .flac, .aac</div>
+                <div class="filename" id="fileName"></div>
+            </div>
+        </div>
+
+        <!-- Context & Tags -->
+        <div class="section">
+            <div class="section-title"><span class="icon">📝</span> Context & Tags</div>
+            <div class="row single">
+                <div class="field">
+                    <label>Audio Description (optional)</label>
+                    <textarea id="description" placeholder="Describe the audio content to guide transcription accuracy. E.g: A video about John Obi Mikel's career at Chelsea FC, his time in the Super Lig with Trabzonspor, and his role in the Nigerian national team."></textarea>
+                    <span class="help">Helps correct names the AI might misspell during transcription. Your description takes precedence.</span>
+                </div>
+            </div>
+            <div class="row single">
+                <div class="field">
+                    <label>Tags — key names, clubs, countries (optional)</label>
+                    <div class="tags-container" id="tagsContainer">
+                        <input type="text" class="tags-input" id="tagsInput" placeholder="Type and press Enter or comma...">
+                    </div>
+                    <span class="help">People, football clubs, or countries whose images must appear. Press Enter or comma to add.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Settings -->
+        <div class="section">
+            <div class="section-title"><span class="icon">🎬</span> Video Settings</div>
+            <div class="row">
+                <div class="field">
+                    <label>Video Resolution</label>
+                    <div class="quality-toggle" id="resolutionToggle">
+                        <button class="quality-btn active" data-value="1080p">1080p</button>
+                        <button class="quality-btn" data-value="720p">720p</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>FPS (Frames Per Second)</label>
+                    <div class="range-row">
+                        <input type="range" id="fps" min="12" max="60" value="24">
+                        <span class="range-value" id="fpsValue">24</span>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="field">
+                    <label>Max Image Duration (seconds)</label>
+                    <div class="range-row">
+                        <input type="range" id="maxImageDuration" min="2" max="15" value="8">
+                        <span class="range-value" id="maxImageDurationValue">8s</span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Ken Burns Intensity</label>
+                    <div class="range-row">
+                        <input type="range" id="kenBurnsScale" min="100" max="130" value="115">
+                        <span class="range-value" id="kenBurnsScaleValue">1.15</span>
+                    </div>
+                    <span class="help">1.0 = no motion, 1.3 = dramatic zoom/pan</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Settings -->
+        <div class="section">
+            <div class="section-title"><span class="icon">🖼️</span> Image Settings</div>
+            <div class="row">
+                <div class="field">
+                    <label>Minimum Image Quality</label>
+                    <select id="minImageQuality">
+                        <option value="360p">360p (640×360)</option>
+                        <option value="480p">480p (854×480)</option>
+                        <option value="720p">720p (1280×720)</option>
+                        <option value="1080p">1080p (1920×1080)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Video Bitrate</label>
+                    <select id="bitrate">
+                        <option value="3000k">3 Mbps (smaller file)</option>
+                        <option value="5000k" selected>5 Mbps (balanced)</option>
+                        <option value="8000k">8 Mbps (higher quality)</option>
+                        <option value="12000k">12 Mbps (best quality)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transitions -->
+        <div class="section">
+            <div class="section-title"><span class="icon">✨</span> Transitions</div>
+            <div class="row">
+                <div class="field">
+                    <label>Transition Duration (seconds)</label>
+                    <div class="range-row">
+                        <input type="range" id="transitionDuration" min="0" max="15" value="5" step="1">
+                        <span class="range-value" id="transitionDurationValue">0.5s</span>
+                    </div>
+                </div>
+            </div>
+            <div class="row single" style="margin-top: 8px;">
+                <div class="field">
+                    <label>Transition Types (select one or more — will shuffle randomly)</label>
+                    <div class="transition-grid" id="transitionGrid">
+                        <div class="transition-pill active" data-value="crossfade">Crossfade</div>
+                        <div class="transition-pill" data-value="fade_black">Fade to Black</div>
+                        <div class="transition-pill" data-value="slide_left">Slide Left</div>
+                        <div class="transition-pill" data-value="slide_right">Slide Right</div>
+                        <div class="transition-pill" data-value="slide_up">Slide Up</div>
+                        <div class="transition-pill" data-value="slide_down">Slide Down</div>
+                        <div class="transition-pill" data-value="none">No Transition</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+            <button class="btn btn-secondary" id="resetBtn">Reset Defaults</button>
+            <button class="btn btn-primary" id="generateBtn" disabled>Generate Video</button>
+        </div>
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        // State
+        let tags = [];
+        let selectedTransitions = ['crossfade'];
+        let resolution = '1080p';
+        let audioFileObj = null;
+
+        // Elements
+        const audioFileInput = document.getElementById('audioFile');
+        const fileNameEl = document.getElementById('fileName');
+        const uploadArea = document.getElementById('uploadArea');
+        const tagsContainer = document.getElementById('tagsContainer');
+        const tagsInput = document.getElementById('tagsInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusEl = document.getElementById('status');
+
+        // --- Audio Upload ---
+        audioFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                audioFileObj = e.target.files[0];
+                fileNameEl.textContent = audioFileObj.name;
+                generateBtn.disabled = false;
+            }
+        });
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                audioFileObj = e.dataTransfer.files[0];
+                audioFileInput.files = e.dataTransfer.files;
+                fileNameEl.textContent = audioFileObj.name;
+                generateBtn.disabled = false;
+            }
+        });
+
+        // --- Tags ---
+        tagsContainer.addEventListener('click', () => tagsInput.focus());
+        tagsInput.addEventListener('keydown', (e) => {
+            if ((e.key === 'Enter' || e.key === ',') && tagsInput.value.trim()) {
+                e.preventDefault();
+                addTag(tagsInput.value.trim().replace(/,/g, ''));
+                tagsInput.value = '';
+            }
+            if (e.key === 'Backspace' && !tagsInput.value && tags.length > 0) {
+                removeTag(tags.length - 1);
+            }
+        });
+        function addTag(text) {
+            if (!text || tags.includes(text)) return;
+            tags.push(text);
+            renderTags();
+        }
+        function removeTag(idx) {
+            tags.splice(idx, 1);
+            renderTags();
+        }
+        function renderTags() {
+            tagsContainer.querySelectorAll('.tag').forEach(el => el.remove());
+            tags.forEach((tag, idx) => {
+                const el = document.createElement('span');
+                el.className = 'tag';
+                el.innerHTML = `${tag}<span class="remove" onclick="removeTag(${idx})">&times;</span>`;
+                tagsContainer.insertBefore(el, tagsInput);
+            });
+        }
+
+        // --- Transition Pills ---
+        document.getElementById('transitionGrid').addEventListener('click', (e) => {
+            const pill = e.target.closest('.transition-pill');
+            if (!pill) return;
+            const val = pill.dataset.value;
+            if (val === 'none') {
+                // Deselect all others, select "none"
+                selectedTransitions = ['none'];
+            } else {
+                // Remove "none" if present
+                selectedTransitions = selectedTransitions.filter(t => t !== 'none');
+                if (selectedTransitions.includes(val)) {
+                    selectedTransitions = selectedTransitions.filter(t => t !== val);
+                } else {
+                    selectedTransitions.push(val);
+                }
+                if (selectedTransitions.length === 0) selectedTransitions = ['none'];
+            }
+            document.querySelectorAll('.transition-pill').forEach(p => {
+                p.classList.toggle('active', selectedTransitions.includes(p.dataset.value));
+            });
+        });
+
+        // --- Resolution Toggle ---
+        document.getElementById('resolutionToggle').addEventListener('click', (e) => {
+            const btn = e.target.closest('.quality-btn');
+            if (!btn) return;
+            resolution = btn.dataset.value;
+            document.querySelectorAll('#resolutionToggle .quality-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.value === resolution);
+            });
+        });
+
+        // --- Range Sliders ---
+        document.getElementById('fps').addEventListener('input', (e) => {
+            document.getElementById('fpsValue').textContent = e.target.value;
+        });
+        document.getElementById('maxImageDuration').addEventListener('input', (e) => {
+            document.getElementById('maxImageDurationValue').textContent = e.target.value + 's';
+        });
+        document.getElementById('kenBurnsScale').addEventListener('input', (e) => {
+            document.getElementById('kenBurnsScaleValue').textContent = (e.target.value / 100).toFixed(2);
+        });
+        document.getElementById('transitionDuration').addEventListener('input', (e) => {
+            document.getElementById('transitionDurationValue').textContent = (e.target.value / 10).toFixed(1) + 's';
+        });
+
+        // --- Reset ---
+        resetBtn.addEventListener('click', () => {
+            document.getElementById('fps').value = 24;
+            document.getElementById('fpsValue').textContent = '24';
+            document.getElementById('maxImageDuration').value = 8;
+            document.getElementById('maxImageDurationValue').textContent = '8s';
+            document.getElementById('kenBurnsScale').value = 115;
+            document.getElementById('kenBurnsScaleValue').textContent = '1.15';
+            document.getElementById('transitionDuration').value = 5;
+            document.getElementById('transitionDurationValue').textContent = '0.5s';
+            document.getElementById('minImageQuality').value = '360p';
+            document.getElementById('bitrate').value = '5000k';
+            document.getElementById('description').value = '';
+            tags = [];
+            renderTags();
+            selectedTransitions = ['crossfade'];
+            document.querySelectorAll('.transition-pill').forEach(p => {
+                p.classList.toggle('active', p.dataset.value === 'crossfade');
+            });
+            resolution = '1080p';
+            document.querySelectorAll('#resolutionToggle .quality-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.value === '1080p');
+            });
+        });
+
+        // --- Generate ---
+        function showStatus(msg, type) {
+            statusEl.textContent = msg;
+            statusEl.className = 'status show ' + type;
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            if (!audioFileObj) {
+                showStatus('Please upload an audio file first.', 'error');
+                return;
+            }
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Uploading & Starting...';
+            showStatus('Uploading audio and saving settings...', 'info');
+
+            const formData = new FormData();
+            formData.append('audio', audioFileObj);
+            formData.append('settings', JSON.stringify({
+                resolution: resolution,
+                fps: parseInt(document.getElementById('fps').value),
+                max_image_duration: parseInt(document.getElementById('maxImageDuration').value),
+                ken_burns_scale: parseInt(document.getElementById('kenBurnsScale').value) / 100,
+                min_image_quality: document.getElementById('minImageQuality').value,
+                bitrate: document.getElementById('bitrate').value,
+                transition_duration: parseInt(document.getElementById('transitionDuration').value) / 10,
+                transition_types: selectedTransitions,
+                description: document.getElementById('description').value.trim(),
+                tags: tags
+            }));
+
+            try {
+                const resp = await fetch('/api/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showStatus('Settings saved & pipeline started! Check the terminal for progress.', 'success');
+                } else {
+                    showStatus('Error: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showStatus('Connection error: ' + e.message, 'error');
+            }
+
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generate Video';
+        });
+    </script>
+</body>
+</html>
