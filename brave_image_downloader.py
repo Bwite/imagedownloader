@@ -9,8 +9,8 @@ from urllib.parse import urlparse
 from PIL import Image
 
 
-# Minimum image dimensions (width, height)
-MIN_IMAGE_SIZE = (640, 360)
+# Default minimum image dimensions (width, height) — 240p
+MIN_IMAGE_SIZE = (426, 240)
 
 
 class SerpAPIImageDownloader:
@@ -20,9 +20,9 @@ class SerpAPIImageDownloader:
         self.api_key = api_key
         self.base_url = "https://serpapi.com/search"
     
-    def search_images(self, query, count=50):
+    def search_images(self, query, count=50, min_size=None):
         """Search for images using SerpAPI Google Images."""
-        min_w, min_h = MIN_IMAGE_SIZE
+        effective_min = min_size if min_size is not None else MIN_IMAGE_SIZE
         
         params = {
             "engine": "google_images",
@@ -44,6 +44,10 @@ class SerpAPIImageDownloader:
             data = response.json()
             results = data.get('images_results', [])
             
+            if not effective_min:
+                return results
+            
+            min_w, min_h = effective_min
             # Pre-filter by dimensions
             filtered = []
             for img in results:
@@ -78,7 +82,7 @@ class BraveImageDownloader:
         request_count = min(max(count * 3, 20), 150)
 
         # Determine minimum quality for pre-filtering
-        min_w, min_h = MIN_IMAGE_SIZE
+        effective_min = min_size if min_size is not None else MIN_IMAGE_SIZE
 
         params = {
             "q": query,
@@ -102,6 +106,10 @@ class BraveImageDownloader:
             data = response.json()
             results = data.get('results', [])
 
+            if not effective_min:
+                return results
+
+            min_w, min_h = effective_min
             # Pre-filter: skip results where reported dimensions are too small
             filtered = []
             for img in results:
@@ -204,16 +212,18 @@ class BraveImageDownloader:
                         f.write(chunk)
                 
                 # Enforce minimum image quality
-                min_w, min_h = MIN_IMAGE_SIZE
-                try:
-                    with Image.open(filepath) as pil_img:
-                        w, h = pil_img.size
-                        if w < min_w or h < min_h:
-                            os.remove(filepath)
-                            print(f"  Too small ({w}x{h}, need {min_w}x{min_h}), trying next...")
-                            continue
-                except Exception:
-                    pass
+                effective_min = MIN_IMAGE_SIZE
+                if effective_min:
+                    min_w, min_h = effective_min
+                    try:
+                        with Image.open(filepath) as pil_img:
+                            w, h = pil_img.size
+                            if w < min_w or h < min_h:
+                                os.remove(filepath)
+                                print(f"  Too small ({w}x{h}, need {min_w}x{min_h}), trying next...")
+                                continue
+                    except Exception:
+                        pass
 
                 file_size = os.path.getsize(filepath) / 1024  # Size in KB
                 print(f"✅ Downloaded: {filename} ({file_size:.1f} KB)")
@@ -261,21 +271,22 @@ class ImageDownloader:
         
         return '.jpg'
     
-    def download_images(self, query, count=50, download_folder=None):
+    def download_images(self, query, count=50, download_folder=None, min_size=None):
         """Download images, trying SerpAPI first then Brave."""
         results = []
         source = None
+        effective_min = min_size if min_size is not None else MIN_IMAGE_SIZE
         
         # Try SerpAPI first
         if self.serpapi:
-            results = self.serpapi.search_images(query, count * 3)
+            results = self.serpapi.search_images(query, count * 3, effective_min)
             if results:
                 source = 'serpapi'
         
         # Fall back to Brave
         if not results and self.brave:
             print("Falling back to Brave Search...")
-            results = self.brave.search_images(query, count * 3)
+            results = self.brave.search_images(query, count * 3, effective_min)
             if results:
                 source = 'brave'
         
@@ -332,15 +343,16 @@ class ImageDownloader:
                         f.write(chunk)
                 
                 # Verify minimum quality
-                min_w, min_h = MIN_IMAGE_SIZE
-                try:
-                    with Image.open(filepath) as pil_img:
-                        w, h = pil_img.size
-                        if w < min_w or h < min_h:
-                            os.remove(filepath)
-                            continue
-                except Exception:
-                    pass
+                if effective_min:
+                    min_w, min_h = effective_min
+                    try:
+                        with Image.open(filepath) as pil_img:
+                            w, h = pil_img.size
+                            if w < min_w or h < min_h:
+                                os.remove(filepath)
+                                continue
+                    except Exception:
+                        pass
                 
                 file_size = os.path.getsize(filepath) / 1024
                 print(f"✅ Downloaded: {filename} ({file_size:.1f} KB)")
