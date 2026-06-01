@@ -4,30 +4,13 @@ Image Downloader - Downloads images from SerpAPI (Google) with Brave as fallback
 
 import requests
 import os
-import json
 import time
 from urllib.parse import urlparse
 from PIL import Image
 
 
-# Map quality labels to minimum pixel dimensions (width, height)
-QUALITY_MAP = {
-    '360p': (640, 360),
-    '480p': (854, 480),
-    '720p': (1280, 720),
-    '1080p': (1920, 1080),
-}
-
-
-def _load_min_quality():
-    """Load minimum image quality from settings.json if available."""
-    settings_path = os.path.join(os.path.dirname(__file__), 'automatic_videos', 'settings.json')
-    if os.path.exists(settings_path):
-        with open(settings_path, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-        quality = settings.get('min_image_quality', '360p')
-        return QUALITY_MAP.get(quality, (640, 360))
-    return (640, 360)
+# Minimum image dimensions (width, height)
+MIN_IMAGE_SIZE = (640, 360)
 
 
 class SerpAPIImageDownloader:
@@ -39,7 +22,7 @@ class SerpAPIImageDownloader:
     
     def search_images(self, query, count=50):
         """Search for images using SerpAPI Google Images."""
-        min_w, min_h = _load_min_quality()
+        min_w, min_h = MIN_IMAGE_SIZE
         
         params = {
             "engine": "google_images",
@@ -94,8 +77,8 @@ class BraveImageDownloader:
         """Search for images using Brave Search API, requesting large images and pre-filtering small ones."""
         request_count = min(max(count * 3, 20), 150)
 
-        # Determine minimum quality from settings for pre-filtering
-        min_w, min_h = _load_min_quality()
+        # Determine minimum quality for pre-filtering
+        min_w, min_h = MIN_IMAGE_SIZE
 
         params = {
             "q": query,
@@ -220,8 +203,8 @@ class BraveImageDownloader:
                     for chunk in img_response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 
-                # Enforce minimum image quality from settings
-                min_w, min_h = _load_min_quality()
+                # Enforce minimum image quality
+                min_w, min_h = MIN_IMAGE_SIZE
                 try:
                     with Image.open(filepath) as pil_img:
                         w, h = pil_img.size
@@ -349,7 +332,7 @@ class ImageDownloader:
                         f.write(chunk)
                 
                 # Verify minimum quality
-                min_w, min_h = _load_min_quality()
+                min_w, min_h = MIN_IMAGE_SIZE
                 try:
                     with Image.open(filepath) as pil_img:
                         w, h = pil_img.size

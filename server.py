@@ -63,16 +63,6 @@ def home():
     """Serve the main HTML page"""
     return app.send_static_file('index.html')
 
-@app.route('/test')
-def test():
-    """Serve the test HTML page"""
-    return app.send_static_file('test.html')
-
-@app.route('/web')
-def web():
-    """Serve the web deployment version"""
-    return app.send_static_file('web.html')
-
 @app.route('/debug-search', methods=['POST'])
 def debug_search():
     """Debug endpoint to see API response structure"""
@@ -297,10 +287,6 @@ def open_folder(session_id):
 
 
 if __name__ == '__main__':
-    print("🚀 Starting Ultimate Download Machine Server...")
-    print("🌐 Web App: http://localhost:5000/web")
-    print("📁 Images download directly to user's device as ZIP")
-    print("🚀 Ready for web deployment!")
-    print("=" * 60)
+    print("Image Downloader running at http://localhost:5000")
     port = int(os.getenv('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Downloader</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Image Downloader</h1>
+        <p class="subtitle">Search and download images as a ZIP file</p>
+
+        <form id="downloadForm">
+            <div class="form-group">
+                <label for="query">Search Query</label>
+                <input type="text" id="query" placeholder="e.g. sunset over mountains" required>
+            </div>
+
+            <div class="form-group">
+                <label for="imageCount">Number of Images</label>
+                <div class="number-input-wrapper">
+                    <input type="number" id="imageCount" value="20" min="1" max="50">
+                    <span class="max-label">max 50</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="minSize">Minimum Size</label>
+                <select id="minSize">
+                    <option value="any">Any size</option>
+                    <option value="640x360">640×360 (360p)</option>
+                    <option value="1280x720" selected>1280×720 (720p)</option>
+                    <option value="1920x1080">1920×1080 (1080p)</option>
+                </select>
+            </div>
+
+            <button type="submit" class="download-btn">
+                <span class="icon">📥</span>Start Download
+            </button>
+        </form>
+
+        <div class="feature-list">
+            <h3>How it works</h3>
+            <ul>
+                <li>Enter a search term and choose how many images to download</li>
+                <li>Images are fetched via Brave Search API</li>
+                <li>All images are packaged into a ZIP file for you to save</li>
+                <li>Filter by minimum resolution to get high-quality results</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
