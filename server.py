@@ -125,6 +125,7 @@ def download_worker(session_id, query, count, min_size=None):
         download_status[session_id]['message'] = 'Searching for images...'
 
         # Search for images with size filter applied during search
+        # Returns a large pool; we stop downloading once 'count' succeed
         results = downloader.search_images(query, count, min_size)
 
         if not results:
@@ -135,16 +136,20 @@ def download_worker(session_id, query, count, min_size=None):
 
         with status_lock:
             download_status[session_id]['status'] = 'downloading'
-            download_status[session_id]['total'] = len(results)
+            download_status[session_id]['total'] = count
             download_status[session_id]['downloaded'] = 0
             download_status[session_id]['failed'] = 0
-            download_status[session_id]['message'] = f'Downloading {len(results)} images...'
+            download_status[session_id]['message'] = f'Downloading {count} images...'
 
         # Create ZIP file in memory
         zip_buffer = io.BytesIO()
+        safe_query = query.replace(' ', '_').replace('/', '_').replace('\\', '_')
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for i, img in enumerate(results, 1):
+            file_num = 0
+            for img in results:
+                if download_status[session_id]['downloaded'] >= count:
+                    break
                 try:
                     # Get image URL from Brave API response
                     img_url = None
@@ -170,15 +175,15 @@ def download_worker(session_id, query, count, min_size=None):
                     content_type = img_response.headers.get('content-type', '')
                     file_ext = get_file_extension(img_url, content_type)
 
-                    # Create filename
-                    safe_query = query.replace(' ', '_').replace('/', '_').replace('\\', '_')
-                    filename = f"{safe_query}_{i:02d}{file_ext}"
+                    # Create filename using sequential number of successes
+                    file_num += 1
+                    filename = f"{safe_query}_{file_num:02d}{file_ext}"
 
                     # Add image to ZIP
                     zip_file.writestr(filename, img_response.content)
                     download_status[session_id]['downloaded'] += 1
                     download_status[session_id]['progress'] = download_status[session_id]['downloaded']
-                    download_status[session_id]['message'] = f'Downloaded {download_status[session_id]["downloaded"]}/{download_status[session_id]["total"]} images'
+                    download_status[session_id]['message'] = f'Downloaded {download_status[session_id]["downloaded"]}/{count} images'
 
                 except Exception as e:
                     with status_lock:
